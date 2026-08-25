@@ -25,23 +25,24 @@ const Api = load("SingboxApi.js")
 // ------------------------------------------------------------------ commands
 
 {
-  const get = Api.versionCommand("http://h:1", "s3cr3t")
+  const get = Api.versionCommand("http://h:1", true)
   assert.strictEqual(get[0], "curl")
-  assert.ok(get.indexOf("Authorization: Bearer s3cr3t") >= 0)
+  assert.ok(get.indexOf("@-") >= 0)
+  assert.strictEqual(get.join(" ").indexOf("s3cr3t"), -1)
   assert.strictEqual(get[get.length - 1], "http://h:1/version")
 
   // No secret, no empty Authorization header.
-  const bare = Api.versionCommand("http://h:1", "")
+  const bare = Api.versionCommand("http://h:1", false)
   assert.strictEqual(bare.indexOf("-H"), -1)
 
-  const select = Api.selectProxyCommand("http://h:1", "", "My Group", "node a")
+  const select = Api.selectProxyCommand("http://h:1", false, "My Group", "node a")
   assert.strictEqual(select[select.length - 1], "http://h:1/proxies/My%20Group")
   assert.ok(select.indexOf('{"name":"node a"}') >= 0)
 
-  const delay = Api.delayCommand("http://h:1", "", "node a")
+  const delay = Api.delayCommand("http://h:1", false, "node a")
   assert.ok(delay[delay.length - 1].indexOf("/proxies/node%20a/delay?") >= 0)
 
-  const traffic = Api.trafficCommand("http://h:1", "")
+  const traffic = Api.trafficCommand("http://h:1", false)
   assert.ok(traffic.indexOf("--no-buffer") >= 0)
 }
 

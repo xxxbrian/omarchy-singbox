@@ -104,9 +104,10 @@ grep -Fq 'setsid' Model.js
 
 # ---- credentials ----------------------------------------------------------
 
-# The API secret rides an Authorization header, never a URL.
-grep -Fq 'Authorization: Bearer' SingboxApi.js
-refute -Fq 'secret=' SingboxApi.js
+# The API secret rides stdin, never Process argv.
+grep -Fq 'Authorization: Bearer ' Service.qml
+grep -Fq '"@-"' SingboxApi.js
+refute -Fq 'Authorization: Bearer " + secret' SingboxApi.js
 # The failure log is written 0600 through a rename, and the agent prompt
 # carries paths, not the output — argv is world-readable.
 grep -Fq 'chmod 600' Model.js

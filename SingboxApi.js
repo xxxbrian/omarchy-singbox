@@ -69,27 +69,28 @@ function baseUrl(controller) {
   return "http://" + host + ":" + parsed.port
 }
 
-function authArgs(secret) {
-  var token = String(secret === undefined || secret === null ? "" : secret)
-  return token === "" ? [] : ["-H", "Authorization: Bearer " + token]
+// The secret is supplied through curl's stdin by Service.qml. Putting it in
+// argv would expose the bearer credential through /proc and process listings.
+function authArgs(hasSecret) {
+  return hasSecret === true ? ["-H", "@-"] : []
 }
 
-function getCommand(base, secret, path) {
+function getCommand(base, hasSecret, path) {
   return ["curl", "-sS", "--max-time", TIMEOUT_SECONDS, "-w", "\\n%{http_code}"]
-    .concat(authArgs(secret))
+    .concat(authArgs(hasSecret))
     .concat([String(base) + String(path)])
 }
 
-function versionCommand(base, secret) { return getCommand(base, secret, "/version") }
-function configsCommand(base, secret) { return getCommand(base, secret, "/configs") }
-function connectionsCommand(base, secret) { return getCommand(base, secret, "/connections") }
-function proxiesCommand(base, secret) { return getCommand(base, secret, "/proxies") }
+function versionCommand(base, hasSecret) { return getCommand(base, hasSecret, "/version") }
+function configsCommand(base, hasSecret) { return getCommand(base, hasSecret, "/configs") }
+function connectionsCommand(base, hasSecret) { return getCommand(base, hasSecret, "/connections") }
+function proxiesCommand(base, hasSecret) { return getCommand(base, hasSecret, "/proxies") }
 
-function selectProxyCommand(base, secret, group, name) {
+function selectProxyCommand(base, hasSecret, group, name) {
   return ["curl", "-sS", "--max-time", TIMEOUT_SECONDS, "-w", "\\n%{http_code}",
           "-X", "PUT", "-H", "Content-Type: application/json",
           "-d", JSON.stringify({ name: String(name || "") })]
-    .concat(authArgs(secret))
+    .concat(authArgs(hasSecret))
     .concat([String(base) + "/proxies/" + encodeURIComponent(String(group || ""))])
 }
 
@@ -97,9 +98,9 @@ function selectProxyCommand(base, secret, group, name) {
 var DELAY_TEST_URL = "https://www.gstatic.com/generate_204"
 var DELAY_TIMEOUT_MS = 5000
 
-function delayCommand(base, secret, name) {
+function delayCommand(base, hasSecret, name) {
   return ["curl", "-sS", "--max-time", "8", "-w", "\\n%{http_code}"]
-    .concat(authArgs(secret))
+    .concat(authArgs(hasSecret))
     .concat([String(base) + "/proxies/" + encodeURIComponent(String(name || ""))
       + "/delay?timeout=" + DELAY_TIMEOUT_MS
       + "&url=" + encodeURIComponent(DELAY_TEST_URL)])
@@ -109,9 +110,9 @@ function delayCommand(base, secret, name) {
 // held open, so live speeds cost one long-lived curl while the panel is open
 // instead of a poll loop. `--no-buffer` is what makes each line arrive as it
 // is written rather than in 4KB chunks.
-function trafficCommand(base, secret) {
+function trafficCommand(base, hasSecret) {
   return ["curl", "-sS", "-N", "--no-buffer"]
-    .concat(authArgs(secret))
+    .concat(authArgs(hasSecret))
     .concat([String(base) + "/traffic"])
 }
 

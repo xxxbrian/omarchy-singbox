@@ -176,26 +176,38 @@ Item {
       return
     }
     if (!versionProcess.running) {
-      versionProcess.command = SingboxApi.versionCommand(apiBase, apiSecret)
-      versionProcess.running = true
+      versionProcess.command = SingboxApi.versionCommand(apiBase, apiSecret !== "")
+      runApiProcess(versionProcess)
     }
     if (!configsProcess.running) {
-      configsProcess.command = SingboxApi.configsCommand(apiBase, apiSecret)
-      configsProcess.running = true
+      configsProcess.command = SingboxApi.configsCommand(apiBase, apiSecret !== "")
+      runApiProcess(configsProcess)
     }
     refreshProxies()
   }
 
   function refreshProxies() {
     if (apiBase === "" || !coreRunning || proxiesProcess.running) return
-    proxiesProcess.command = SingboxApi.proxiesCommand(apiBase, apiSecret)
-    proxiesProcess.running = true
+    proxiesProcess.command = SingboxApi.proxiesCommand(apiBase, apiSecret !== "")
+    runApiProcess(proxiesProcess)
   }
 
   function refreshConnections() {
     if (!panelOpen || apiBase === "" || !coreRunning || connectionsProcess.running) return
-    connectionsProcess.command = SingboxApi.connectionsCommand(apiBase, apiSecret)
-    connectionsProcess.running = true
+    connectionsProcess.command = SingboxApi.connectionsCommand(apiBase, apiSecret !== "")
+    runApiProcess(connectionsProcess)
+  }
+
+  // curl reads the header from stdin and receives EOF immediately after it.
+  // The token therefore never appears in the Process argv or a process list.
+  function runApiProcess(process) {
+    process.stdinEnabled = apiSecret !== ""
+    process.running = true
+  }
+
+  function writeApiAuth(process) {
+    if (apiSecret !== "") process.write("Authorization: Bearer " + apiSecret + "\n")
+    process.stdinEnabled = false
   }
 
   // ---------------------------------------------------------------- actions
@@ -208,16 +220,16 @@ Item {
     pendingSelectName = wanted
     lastError = ""
     optimismTimer.restart()
-    proxySelectProcess.command = SingboxApi.selectProxyCommand(apiBase, apiSecret, groupName, wanted)
-    proxySelectProcess.running = true
+    proxySelectProcess.command = SingboxApi.selectProxyCommand(apiBase, apiSecret !== "", groupName, wanted)
+    runApiProcess(proxySelectProcess)
   }
 
   function testDelay(name) {
     var wanted = String(name || "")
     if (wanted === "" || delayProcess.running || apiBase === "") return
     delayTesting = wanted
-    delayProcess.command = SingboxApi.delayCommand(apiBase, apiSecret, wanted)
-    delayProcess.running = true
+    delayProcess.command = SingboxApi.delayCommand(apiBase, apiSecret !== "", wanted)
+    runApiProcess(delayProcess)
   }
 
   function toggleService() {
@@ -478,8 +490,10 @@ Item {
     id: versionProcess
     running: false
     command: []
+    stdinEnabled: false
     stdout: StdioCollector { id: versionOut; waitForEnd: true }
     stderr: StdioCollector { id: versionErr; waitForEnd: true }
+    onStarted: root.writeApiAuth(versionProcess)
     onExited: function(exitCode) {
       var result = SingboxApi.classify(exitCode, versionOut.text, versionErr.text)
       root.apiState = result.ok ? "ok" : result.code
@@ -502,8 +516,10 @@ Item {
     id: configsProcess
     running: false
     command: []
+    stdinEnabled: false
     stdout: StdioCollector { id: configsOut; waitForEnd: true }
     stderr: StdioCollector { id: configsErr; waitForEnd: true }
+    onStarted: root.writeApiAuth(configsProcess)
     onExited: function(exitCode) {
       var result = SingboxApi.classify(exitCode, configsOut.text, configsErr.text)
       if (!result.ok) return
@@ -517,8 +533,10 @@ Item {
     id: connectionsProcess
     running: false
     command: []
+    stdinEnabled: false
     stdout: StdioCollector { id: connectionsOut; waitForEnd: true }
     stderr: StdioCollector { id: connectionsErr; waitForEnd: true }
+    onStarted: root.writeApiAuth(connectionsProcess)
     onExited: function(exitCode) {
       var result = SingboxApi.classify(exitCode, connectionsOut.text, connectionsErr.text)
       if (!result.ok) return
@@ -535,8 +553,10 @@ Item {
     id: proxiesProcess
     running: false
     command: []
+    stdinEnabled: false
     stdout: StdioCollector { id: proxiesOut; waitForEnd: true }
     stderr: StdioCollector { id: proxiesErr; waitForEnd: true }
+    onStarted: root.writeApiAuth(proxiesProcess)
     onExited: function(exitCode) {
       var result = SingboxApi.classify(exitCode, proxiesOut.text, proxiesErr.text)
       if (!result.ok) return
@@ -561,8 +581,10 @@ Item {
     id: proxySelectProcess
     running: false
     command: []
+    stdinEnabled: false
     stdout: StdioCollector { id: proxySelectOut; waitForEnd: true }
     stderr: StdioCollector { id: proxySelectErr; waitForEnd: true }
+    onStarted: root.writeApiAuth(proxySelectProcess)
     onExited: function(exitCode) {
       var result = SingboxApi.classify(exitCode, proxySelectOut.text, proxySelectErr.text)
       if (!result.ok) {
@@ -579,8 +601,10 @@ Item {
     id: delayProcess
     running: false
     command: []
+    stdinEnabled: false
     stdout: StdioCollector { id: delayOut; waitForEnd: true }
     stderr: StdioCollector { id: delayErr; waitForEnd: true }
+    onStarted: root.writeApiAuth(delayProcess)
     onExited: function(exitCode) {
       var tested = root.delayTesting
       root.delayTesting = ""
@@ -742,7 +766,9 @@ Item {
   Process {
     id: trafficProcess
     running: false
-    command: root.apiBase === "" ? [] : SingboxApi.trafficCommand(root.apiBase, root.apiSecret)
+    stdinEnabled: false
+    command: root.apiBase === "" ? [] : SingboxApi.trafficCommand(root.apiBase, root.apiSecret !== "")
+    onStarted: root.writeApiAuth(trafficProcess)
     stdout: SplitParser {
       onRead: function(line) {
         var sample = SingboxApi.parseTrafficLine(line)
