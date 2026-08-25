@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "id": "singbox.omarchy",
+  "name": "sing-box",
+  "version": "0.1.0",
+  "author": "Bojin Li <hi@bojin.li>",
+  "license": "MIT",
+  "description": "A sing-box control panel for the Omarchy bar: watch the running core, switch Clash modes, pick proxies, and monitor live traffic — driven by your own sing-box config.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "activation": "on-demand",
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "sing-box",
+    "description": "A sing-box control panel in the bar: connection status, live up/down speed, Clash mode switching, and proxy selection over the running core's Clash API.",
+    "category": "Network",
+    "aliases": [
+      "sing-box",
+      "singbox",
+      "proxy",
+      "vpn",
+      "clash",
+      "tun",
+      "vless",
+      "hysteria2",
+      "shadowsocks",
+      "v2ray"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 30
+    },
+    "schema": [
+      {
+        "key": "refreshIntervalSec",
+        "type": "integer",
+        "label": "Refresh interval (seconds)",
+        "min": 5,
+        "max": 3600,
+        "step": 5,
+        "defaultValue": 30
+      }
+    ]
+  }
+}
