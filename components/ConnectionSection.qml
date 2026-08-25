@@ -130,8 +130,8 @@ Column {
       textColor: root.textColor
       panelFontFamily: root.panelFontFamily
       label: "Uptime"
-      value: Model.uptimeSeconds(root.service.probe) > 0
-        ? Model.formatDuration(Model.uptimeSeconds(root.service.probe))
+      value: Model.uptimeSeconds(root.service.probe, root.service.nowEpoch) > 0
+        ? Model.formatDuration(Model.uptimeSeconds(root.service.probe, root.service.nowEpoch))
         : "—"
     }
 

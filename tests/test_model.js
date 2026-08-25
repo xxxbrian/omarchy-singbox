@@ -191,6 +191,11 @@ function probeWith(overrides) {
     pid: 9, procScope: "user", procUnit: "sing-box.service",
     unitLoaded: true, activeState: "active", startedAt: 100, now: 130
   })), 30)
+  // A live clock advances the display without waiting for another probe.
+  assert.strictEqual(Model.uptimeSeconds(probeWith({
+    pid: 9, procScope: "system", procUnit: "sing-box.service",
+    sysActiveState: "active", sysStartedAt: 100, now: 130
+  }), 175), 75)
   assert.strictEqual(Model.uptimeSeconds(probeWith({ pid: 9 })), 0)
   assert.strictEqual(Model.uptimeSeconds(probeWith({})), 0)
 }

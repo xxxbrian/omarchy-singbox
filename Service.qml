@@ -46,6 +46,10 @@ Item {
   property real memoryUsage: 0
   property real upSpeed: 0
   property real downSpeed: 0
+  // A local clock for values derived from an event timestamp. It ticks only
+  // while the panel is visible; uptime should not wait for the next process
+  // probe, and updating it does not justify spawning one every second.
+  property real nowEpoch: Date.now() / 1000
   property var upHistory: []
   property var downHistory: []
   property real trafficIdleSince: 0
@@ -357,6 +361,15 @@ Item {
     repeat: true
     running: root.panelOpen
     onTriggered: root.refreshConnections()
+  }
+
+  Timer {
+    id: clockTimer
+    interval: 1000
+    repeat: true
+    running: root.panelOpen
+    triggeredOnStart: true
+    onTriggered: root.nowEpoch = Date.now() / 1000
   }
 
   // A refresh right after an action would race systemd, which reports the old

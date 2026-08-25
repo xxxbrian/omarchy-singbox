@@ -337,14 +337,16 @@ function serviceHint(probe) {
 
 // Seconds the serving unit has been up, or 0 when nothing systemd-owned is
 // active — one place, so the uptime row cannot disagree with the scope.
-function uptimeSeconds(probe) {
+function uptimeSeconds(probe, nowSeconds) {
   var state = probe || emptyProbe()
   var scope = serviceScope(state)
-  if (state.pid === 0 || state.now <= 0) return 0
+  var suppliedNow = Number(nowSeconds)
+  var now = isFinite(suppliedNow) && suppliedNow > 0 ? suppliedNow : state.now
+  if (state.pid === 0 || now <= 0) return 0
   if (scope === "user" && state.activeState === "active" && state.startedAt > 0)
-    return state.now - state.startedAt
+    return Math.max(0, now - state.startedAt)
   if (scope === "system" && state.sysActiveState === "active" && state.sysStartedAt > 0)
-    return state.now - state.sysStartedAt
+    return Math.max(0, now - state.sysStartedAt)
   return 0
 }
 

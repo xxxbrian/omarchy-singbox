@@ -112,6 +112,10 @@ one with the cursor cleared.
   timeout whether or not the truth arrived.
 - The running core wins over everything: the API's answers set the mode, the
   proxies, and the version the panel shows.
+- Live values use the cheapest truthful source: throughput streams from the
+  core, connection totals poll while the panel is open, and uptime advances
+  from a local one-second clock anchored to systemd's start timestamp. The
+  clock stops with the panel and never spawns a process of its own.
 
 ## Credentials
 

@@ -67,6 +67,8 @@ grep -Fq 'SingboxApi.trafficCommand' Service.qml
 grep -Fq 'var wanted = panelOpen && apiBase !== "" && coreRunning && apiState === "ok"' Service.qml
 # The connections poll is panel-scoped too — nothing polls a closed panel.
 grep -Fq 'running: root.panelOpen' Service.qml
+grep -Fq 'onTriggered: root.nowEpoch = Date.now() / 1000' Service.qml
+grep -Fq 'Model.uptimeSeconds(root.service.probe, root.service.nowEpoch)' components/ConnectionSection.qml
 
 # One source of truth for what the panel is looking at. It is `connection`,
 # not `state`: QQuickItem owns that name, so `singbox.state` silently resolves
