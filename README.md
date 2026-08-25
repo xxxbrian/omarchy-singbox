@@ -1,0 +1,143 @@
+# sing-box for Omarchy
+
+An Omarchy bar panel for [sing-box](https://sing-box.sagernet.org): connection
+status, live up/down speed, Clash mode switching, and proxy selection — driven
+by your own sing-box config over the core's Clash API.
+
+The panel is a control surface, not a manager. **It never writes your config,
+never installs the binary, and never escalates privileges.** You run sing-box
+the way you already do; the panel finds it, watches it, and drives the parts
+its API makes drivable.
+
+## Requirements
+
+- Omarchy
+- [sing-box](https://sing-box.sagernet.org) (`sudo pacman -S sing-box`)
+- A config with the Clash API enabled:
+
+```json
+{
+  "experimental": {
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "secret": "your-secret"
+    }
+  }
+}
+```
+
+## Install
+
+```sh
+omarchy plugin add https://github.com/xxxbrian/omarchy-singbox.git --enable
+omarchy bar move singbox.omarchy --section right
+```
+
+Remove with:
+
+```sh
+omarchy plugin remove singbox.omarchy
+```
+
+## How the panel finds your core
+
+Every refresh runs the same discovery, and the first hit wins:
+
+1. `~/.config/omarchy-singbox/config` — your explicit override
+2. The running `sing-box` process — its `-c`/`-C` arguments name the config it
+   is actually using, and its cgroup names the systemd unit that owns it
+3. That config's `experimental.clash_api` — controller address and secret
+4. `127.0.0.1:9090` with no secret, as a last shot at a core whose config the
+   panel could not read
+
+So it works whether sing-box runs under a user unit, was started by hand, or
+sits behind a config the panel cannot parse — you only need the override file
+for setups discovery cannot see:
+
+```
+# ~/.config/omarchy-singbox/config
+endpoint = 127.0.0.1:9090
+secret = your-secret
+unit = my-singbox.service
+config = /path/to/config.json
+```
+
+## What the panel can do
+
+| | How |
+|---|---|
+| Status, version, live traffic, connection count | Clash API (`/version`, `/traffic`, `/connections`) |
+| Switch Clash modes | `PATCH /configs` — the modes are whatever your route rules' `clash_mode` values define; with none defined the control hides itself |
+| Pick a proxy in a `Selector` group, test latency | `PUT /proxies/{group}`, `/delay` |
+| Start / stop / restart | `systemctl --user`, only for a user-scope unit — a system unit or a hand-started core is reported, not fought over |
+| Validate a changed config | `sing-box check`, with the journal fetched when a start fails anyway |
+| Edit the config | Opens your editor on the file; the panel itself never writes it |
+
+Modes worth knowing about: sing-box has no built-in Rule/Global/Direct. To get
+the classic three, your route rules need `clash_mode` entries, e.g.:
+
+```json
+{
+  "route": {
+    "rules": [
+      { "clash_mode": "Global", "outbound": "GLOBAL" },
+      { "clash_mode": "Direct", "outbound": "direct" }
+    ]
+  }
+}
+```
+
+## Keyboard
+
+With the panel open (`Esc` closes or goes back, `Tab` moves to the next panel):
+
+| Key | Action |
+|-----|--------|
+| `r` | Refresh |
+| `t` | Toggle the service |
+| `m` | Cycle modes; `1`–`9` jump to one |
+| `p` | Proxies page |
+| `c` | Configuration page |
+| arrows / `hjkl` | Move the cursor; Enter activates |
+
+On the proxies page, left-click a node to select it, right-click to test its
+latency.
+
+## From a script
+
+```sh
+omarchy-shell singbox.omarchy status     # one JSON line
+omarchy-shell singbox.omarchy mode Rule  # case-insensitive, must be in mode-list
+omarchy-shell singbox.omarchy restart
+```
+
+## Troubleshooting
+
+If sing-box will not start, the journal is where the real error lands
+(`sing-box check` passes configs with dangling outbound references; they fail
+at start):
+
+```sh
+journalctl --user -u sing-box.service -n 30 --no-pager
+```
+
+The panel offers **Diagnose...** on such failures, which writes the full
+output to a `0600` file and points your default Omarchy agent at it.
+
+## Development
+
+```sh
+./install.sh --no-restart
+make test
+make validate
+```
+
+## Credits
+
+The architecture, component patterns, and several components follow
+[omarchy-mihoro](https://github.com/huacnlee/omarchy-mihoro) (MIT), whose
+design this plugin deliberately mirrors.
+
+## License
+
+MIT. sing-box is distributed separately under its own license.
