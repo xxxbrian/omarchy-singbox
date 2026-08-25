@@ -114,6 +114,17 @@ Panel {
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
+  // Brings an expanded group to the top of the viewport, so the member list
+  // that just appeared is on screen instead of unfolding below the fold.
+  function scrollGroupsTo(blockY) {
+    var target = groupsSection.y + blockY - Style.space(8)
+    var limit = Math.max(0, panelFlick.contentHeight - panelFlick.height)
+    scrollAnim.stop()
+    scrollAnim.from = panelFlick.contentY
+    scrollAnim.to = Math.max(0, Math.min(limit, target))
+    scrollAnim.start()
+  }
+
   Service {
     id: singbox
     settings: root.settings
@@ -209,7 +220,7 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(380))
-    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(600))
+    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(740))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -246,6 +257,16 @@ Panel {
         flickableDirection: Flickable.VerticalFlick
         interactive: contentHeight > height
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+        // An animation object rather than a Behavior: a Behavior on contentY
+        // would also animate the user's own flicks against them.
+        NumberAnimation {
+          id: scrollAnim
+          target: panelFlick
+          property: "contentY"
+          duration: 180
+          easing.type: Easing.OutCubic
+        }
 
         Column {
           id: column
@@ -399,10 +420,26 @@ Panel {
           }
 
           PanelSeparator {
+            visible: root.panelPage === 1 && !root.showSetup
+            foreground: root.foreground
+          }
+
+          ConnectionSection {
+            visible: root.panelPage === 1 && !root.showSetup
+            width: parent.width
+            service: singbox
+            textColor: root.foreground
+            panelFontFamily: root.fontFamily
+          }
+
+          PanelSeparator {
             visible: root.panelPage === 1 && !root.showSetup && singbox.proxyGroups.length > 0
             foreground: root.foreground
           }
 
+          // Below the stats, not above them: most opens are a glance at the
+          // state, and a selection is an occasional act worth one scroll. The
+          // fold indicator at the panel's edge says when there is more.
           GroupsSection {
             id: groupsSection
             visible: root.panelPage === 1 && !root.showSetup && singbox.proxyGroups.length > 0
@@ -419,19 +456,7 @@ Panel {
               root.cursorActive = true
               root.cursorIndex = root.targets.indexOf(target)
             }
-          }
-
-          PanelSeparator {
-            visible: root.panelPage === 1 && !root.showSetup
-            foreground: root.foreground
-          }
-
-          ConnectionSection {
-            visible: root.panelPage === 1 && !root.showSetup
-            width: parent.width
-            service: singbox
-            textColor: root.foreground
-            panelFontFamily: root.fontFamily
+            onRevealRequested: function(blockY) { root.scrollGroupsTo(blockY) }
           }
 
           ConfigSection {
@@ -442,6 +467,52 @@ Panel {
             panelFontFamily: root.fontFamily
             cursorTarget: root.cursorTarget
             onBackRequested: root.openPage(1)
+          }
+        }
+      }
+
+      // The fold indicator: a fade over the clipped edge plus a one-line
+      // invitation, shown only while something actually sits below it. The
+      // cut-off row already hints that the page continues; this says it out
+      // loud, and clicking it carries the reader down to the groups.
+      Item {
+        id: foldHint
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: Style.space(26)
+        visible: panelFlick.contentHeight > panelFlick.height
+          && panelFlick.contentY < panelFlick.contentHeight - panelFlick.height - Style.space(6)
+
+        Rectangle {
+          anchors.fill: parent
+          gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.rgba(Color.popups.background.r, Color.popups.background.g, Color.popups.background.b, 0.0) }
+            GradientStop { position: 1.0; color: Qt.rgba(Color.popups.background.r, Color.popups.background.g, Color.popups.background.b, 0.92) }
+          }
+        }
+
+        Text {
+          anchors.horizontalCenter: parent.horizontalCenter
+          anchors.bottom: parent.bottom
+          text: "▾"
+          color: foldMouse.containsMouse
+            ? Style.hoverStateColor(root.foreground, Color.accent)
+            : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.55)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        MouseArea {
+          id: foldMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: {
+            scrollAnim.stop()
+            scrollAnim.from = panelFlick.contentY
+            scrollAnim.to = Math.max(0, panelFlick.contentHeight - panelFlick.height)
+            scrollAnim.start()
           }
         }
       }

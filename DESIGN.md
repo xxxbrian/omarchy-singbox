@@ -86,6 +86,13 @@ one with the cursor cleared.
 
 - Page one is the whole state at a glance in **one** notice line; a failure
   may take three, clamped by `maximumLineCount` against the real width.
+- **Status above controls.** Most opens are a glance — is it connected, how
+  fast — so the hero and the connection stats come first and the groups sit
+  below them: a selection is an occasional act, and one scroll is a fair
+  price for it. When the groups run past the panel's edge, a fade and a
+  chevron at the fold say so, and clicking the fold carries the reader down.
+  An expanded group scrolls itself into view — a member list that unfolds
+  below the fold reads as a click that did nothing.
 - **A message from outside is shortened before it is shown, never by the
   clamp.** Journal lines and check errors quote URLs and payloads;
   `Model.noticeMessage` redacts URLs to their host and collapses quoted runs

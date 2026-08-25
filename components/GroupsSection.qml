@@ -24,10 +24,13 @@ Column {
   property string expandedGroup: ""
 
   signal rowHovered(string target, bool isHovered)
+  // The y of a group block that just expanded, for the panel to scroll into
+  // view — the member list unfolds below the fold otherwise.
+  signal revealRequested(real blockY)
 
   readonly property var groups: service.proxyGroups
 
-  spacing: Style.space(8)
+  spacing: Style.space(6)
 
   function currentOf(group) {
     if (root.service.pendingSelectGroup === group.name && root.service.pendingSelectName !== "")
@@ -36,12 +39,24 @@ Column {
   }
 
   function toggleGroup(name) {
-    expandedGroup = expandedGroup === name ? "" : name
+    var expanding = expandedGroup !== name
+    expandedGroup = expanding ? name : ""
+    if (expanding) Qt.callLater(function() { revealGroup(name) })
   }
 
   function toggleGroupAt(index) {
     if (index < 0 || index >= groups.length) return
     toggleGroup(groups[index].name)
+  }
+
+  function revealGroup(name) {
+    for (var i = 0; i < groupsRepeater.count; i++) {
+      var item = groupsRepeater.itemAt(i)
+      if (item && item.modelData.name === name) {
+        revealRequested(item.y)
+        return
+      }
+    }
   }
 
   Item {
@@ -69,6 +84,7 @@ Column {
   }
 
   Repeater {
+    id: groupsRepeater
     model: root.groups
 
     delegate: Column {
@@ -80,12 +96,12 @@ Column {
       readonly property string current: root.currentOf(modelData)
 
       width: root.width
-      spacing: Style.space(2)
+      spacing: Style.space(1)
 
       Rectangle {
         id: groupRow
         width: parent.width
-        implicitHeight: Style.space(36)
+        implicitHeight: Style.space(31)
         radius: Style.cornerRadius
         color: groupHover.hovered || root.cursorTarget === "group:" + groupBlock.modelData.name
           ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.08)
@@ -159,7 +175,7 @@ Column {
             readonly property bool selectable: groupBlock.modelData.selectable
 
             width: groupBlock.width
-            implicitHeight: Style.space(30)
+            implicitHeight: Style.space(27)
             radius: Style.cornerRadius
             color: memberHover.hovered || root.cursorTarget === "member:" + groupBlock.modelData.name + ":" + modelData.name
               ? Style.hoverFillFor(root.textColor, Color.accent)
