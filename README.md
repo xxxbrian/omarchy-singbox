@@ -69,7 +69,7 @@ config = /path/to/config.json
 | Status, version, live traffic, connection count | Clash API (`/version`, `/traffic`, `/connections`) |
 | Switch Clash modes | `PATCH /configs` — the modes are whatever your route rules' `clash_mode` values define; with none defined the control hides itself |
 | Pick a proxy in a `Selector` group, test latency | `PUT /proxies/{group}`, `/delay` |
-| Start / stop / restart | `systemctl --user`, only for a user-scope unit — a system unit or a hand-started core is reported, not fought over |
+| Start / stop / restart | `systemctl` in the scope that owns the unit — a system unit raises a polkit prompt (your desktop's agent asks for authorization); a hand-started core is watch-only |
 | Validate a changed config | `sing-box check`, with the journal fetched when a start fails anyway |
 | Edit the config | Opens your editor on the file; the panel itself never writes it |
 

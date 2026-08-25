@@ -25,7 +25,11 @@ const Model = load("Model.js")
     "unit_UnitFileState=enabled",
     "unit_MainPID=1234",
     "active_enter_epoch=1700000000",
-    "system_active=inactive",
+    "sys_LoadState=loaded",
+    "sys_ActiveState=inactive",
+    "sys_SubState=dead",
+    "sys_UnitFileState=disabled",
+    "sys_active_enter_epoch=0",
     "config_fallback=/etc/sing-box/config.json",
     "now=1700000100"
   ].join("\n"))
@@ -40,7 +44,9 @@ const Model = load("Model.js")
   assert.strictEqual(probe.activeState, "active")
   assert.strictEqual(probe.unitFileState, "enabled")
   assert.strictEqual(probe.startedAt, 1700000000)
-  assert.strictEqual(probe.systemActive, false)
+  assert.strictEqual(probe.sysUnitLoaded, true)
+  assert.strictEqual(probe.sysActiveState, "inactive")
+  assert.strictEqual(probe.sysUnitFileState, "disabled")
   assert.strictEqual(probe.now, 1700000100)
 }
 
@@ -90,16 +96,21 @@ const Model = load("Model.js")
 // ------------------------------------------------------------------- commands
 
 {
-  eq(Model.startCommand("my.service"),
+  eq(Model.startCommand("my.service", "user"),
     ["systemctl", "--user", "start", "my.service"])
-  eq(Model.stopCommand(""),
+  eq(Model.stopCommand("", ""),
     ["systemctl", "--user", "stop", "sing-box.service"])
+  // System scope drops --user; systemctl itself asks polkit for consent.
+  eq(Model.restartCommand("sing-box.service", "system"),
+    ["systemctl", "restart", "sing-box.service"])
   eq(
     Model.checkCommand("/usr/bin/sing-box",
       [{ kind: "file", path: "/a.json" }, { kind: "dir", path: "/b" }]),
     ["/usr/bin/sing-box", "check", "-c", "/a.json", "-C", "/b"])
-  const journal = Model.journalCommand("sing-box.service", 40)
+  const journal = Model.journalCommand("sing-box.service", "user", 40)
   assert.ok(journal.indexOf("--user") >= 0 && journal.indexOf("sing-box.service") >= 0)
+  const sysJournal = Model.journalCommand("sing-box.service", "system", 40)
+  assert.ok(sysJournal.indexOf("--user") === -1)
 }
 
 // The editor must leave the panel's process group: Quickshell kills the group
@@ -129,6 +140,13 @@ function probeWith(overrides) {
   assert.strictEqual(
     Model.connectionState(probeWith({ binaryPath: "/x", unitLoaded: true, activeState: "failed" }), "unknown").key,
     "failed")
+  // A stopped system unit reports the same states as a user one.
+  assert.strictEqual(
+    Model.connectionState(probeWith({ binaryPath: "/x", sysUnitLoaded: true, sysActiveState: "inactive" }), "unknown").key,
+    "stopped")
+  assert.strictEqual(
+    Model.connectionState(probeWith({ binaryPath: "/x", sysUnitLoaded: true, sysActiveState: "failed" }), "unknown").key,
+    "failed")
   // A running core is running whoever started it, even with no binary on PATH
   // (a core from a container or a copied binary).
   assert.strictEqual(Model.connectionState(probeWith({ pid: 9 }), "ok").key, "running")
@@ -137,13 +155,44 @@ function probeWith(overrides) {
   assert.strictEqual(Model.connectionState(probeWith({ pid: 9 }), "unreachable").key, "running_no_api")
 }
 
-// Control is user-scope only, and never over a system-owned core.
+// The scope that owns the unit is the scope that controls it. A system-owned
+// core is controllable through systemctl's polkit path; only a core running
+// outside systemd is watch-only.
 {
+  assert.strictEqual(Model.serviceScope(
+    probeWith({ pid: 9, procScope: "system", procUnit: "sing-box.service" })), "system")
+  assert.strictEqual(Model.serviceScope(
+    probeWith({ pid: 9, procScope: "user", procUnit: "custom.service" })), "user")
+  assert.strictEqual(Model.serviceScope(probeWith({ pid: 9 })), "")
+  assert.strictEqual(Model.serviceScope(
+    probeWith({ unitLoaded: true, unitFileState: "enabled" })), "user")
+  assert.strictEqual(Model.serviceScope(
+    probeWith({ sysUnitLoaded: true, sysUnitFileState: "enabled" })), "system")
+  // With units on file at both scopes, the user's wins.
+  assert.strictEqual(Model.serviceScope(
+    probeWith({ unitLoaded: true, unitFileState: "enabled", sysUnitLoaded: true, sysUnitFileState: "enabled" })), "user")
+  assert.strictEqual(Model.serviceScope(probeWith({})), "")
+
   assert.strictEqual(Model.canControlService(
-    probeWith({ pid: 9, procScope: "system", unitLoaded: true, unitFileState: "enabled" })), false)
+    probeWith({ pid: 9, procScope: "system", procUnit: "sing-box.service" })), true)
   assert.strictEqual(Model.canControlService(
     probeWith({ unitLoaded: true, unitFileState: "enabled" })), true)
+  assert.strictEqual(Model.canControlService(probeWith({ pid: 9 })), false)
   assert.strictEqual(Model.canControlService(probeWith({})), false)
+}
+
+// Uptime follows the scope that is actually serving.
+{
+  assert.strictEqual(Model.uptimeSeconds(probeWith({
+    pid: 9, procScope: "system", procUnit: "sing-box.service",
+    sysActiveState: "active", sysStartedAt: 100, now: 160
+  })), 60)
+  assert.strictEqual(Model.uptimeSeconds(probeWith({
+    pid: 9, procScope: "user", procUnit: "sing-box.service",
+    unitLoaded: true, activeState: "active", startedAt: 100, now: 130
+  })), 30)
+  assert.strictEqual(Model.uptimeSeconds(probeWith({ pid: 9 })), 0)
+  assert.strictEqual(Model.uptimeSeconds(probeWith({})), 0)
 }
 
 // The mode switch needs a live API and more than one mode to offer.

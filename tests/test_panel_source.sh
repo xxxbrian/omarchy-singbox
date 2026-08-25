@@ -80,11 +80,14 @@ grep -Fq 'metricColor: Color.urgent' components/ConnectionSection.qml
 
 # ---- service control ------------------------------------------------------
 
-# User scope only, and never over a system-owned core. No privilege escalation
-# anywhere in the plugin.
-grep -Fq '"systemctl", "--user"' Model.js
+# The scope that owns the unit is the scope that controls it. At system scope
+# plain systemctl asks polkit and the desktop's agent asks the user — the
+# panel itself never escalates: no pkexec, no sudo, anywhere.
+grep -Fq 'function scopeArgs' Model.js
+grep -Fq 'function serviceScope' Model.js
 refute -Eq 'pkexec|sudo "|"sudo"' Model.js Service.qml Panel.qml
-grep -Fq 'if (state.pid > 0 && state.procScope === "system") return false' Model.js
+# A core running outside systemd has no unit to restart; it stays watch-only.
+grep -Fq 'return state.unitLoaded ? "user" : ""' Model.js
 # Optimism has a deadline: every optimistic overlay is dropped on a timer.
 grep -Fq 'optimismTimer' Service.qml
 

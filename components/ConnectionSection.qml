@@ -109,13 +109,20 @@ Column {
       label: "Service"
       value: {
         var probe = root.service.probe
-        if (probe.pid > 0 && probe.procScope === "system") return "system unit"
+        var scope = root.service.unitScope
+        if (scope === "system") {
+          var sysAuto = probe.sysUnitFileState === "enabled" ? "enabled" : "not enabled"
+          return probe.sysActiveState + " · system · " + sysAuto
+        }
         if (probe.pid > 0 && probe.procUnit === "" && !probe.unitLoaded) return "outside systemd"
-        if (!probe.unitLoaded) return "no user unit"
+        if (scope === "") return "no unit"
         var autostart = probe.unitFileState === "enabled" ? "enabled" : "not enabled"
         return probe.activeState + " · " + autostart
       }
-      valueColor: root.service.probe.activeState === "failed" ? Color.urgent : root.textColor
+      valueColor: (root.service.unitScope === "system"
+          ? root.service.probe.sysActiveState === "failed"
+          : root.service.probe.activeState === "failed")
+        ? Color.urgent : root.textColor
     }
 
     StatRow {
@@ -123,9 +130,8 @@ Column {
       textColor: root.textColor
       panelFontFamily: root.panelFontFamily
       label: "Uptime"
-      value: root.service.coreRunning && root.service.probe.unitLoaded
-          && root.service.probe.activeState === "active" && root.service.probe.startedAt > 0
-        ? Model.formatDuration(root.service.probe.now - root.service.probe.startedAt)
+      value: Model.uptimeSeconds(root.service.probe) > 0
+        ? Model.formatDuration(Model.uptimeSeconds(root.service.probe))
         : "—"
     }
 

@@ -108,6 +108,7 @@ Item {
   readonly property var connection: Model.connectionState(probe, apiState)
   readonly property bool coreRunning: probe.pid > 0
   readonly property bool active: desiredActive === -1 ? connection.active : (desiredActive === 1)
+  readonly property string unitScope: Model.serviceScope(probe)
   readonly property bool canControl: Model.canControlService(probe)
   readonly property string serviceHint: Model.serviceHint(probe)
 
@@ -136,8 +137,7 @@ Item {
   function refreshProbe() {
     if (probeProcess.running) return
     probeProcess.command = Model.probeCommand(
-      override.unit !== "" ? override.unit : (probe.procScope === "user" && probe.procUnit !== "" ? probe.procUnit : ""),
-      override.config, lastKnownConfigPath)
+      SingboxConfig.resolveUnit(override, probe), override.config, lastKnownConfigPath)
     probeProcess.running = true
   }
 
@@ -237,21 +237,21 @@ Item {
     if (!canControl) return
     desiredActive = 1
     optimismTimer.restart()
-    runAction("start", Model.startCommand(unit), "Starting sing-box…")
+    runAction("start", Model.startCommand(unit, unitScope), "Starting sing-box…")
   }
 
   function stopService() {
     if (!canControl) return
     desiredActive = 0
     optimismTimer.restart()
-    runAction("stop", Model.stopCommand(unit), "Stopping sing-box…")
+    runAction("stop", Model.stopCommand(unit, unitScope), "Stopping sing-box…")
   }
 
   function restartService() {
     if (!canControl) return
     desiredActive = 1
     optimismTimer.restart()
-    runAction("restart", Model.restartCommand(unit), "Restarting sing-box…")
+    runAction("restart", Model.restartCommand(unit, unitScope), "Restarting sing-box…")
   }
 
   function runCheck() {
@@ -683,7 +683,7 @@ Item {
         root._failedActionKind = kind
         root._failedActionOutput = root._actionOutput + "\n" + root._actionError
         if (kind === "start" || kind === "restart") {
-          journalProcess.command = Model.journalCommand(root.unit, 40)
+          journalProcess.command = Model.journalCommand(root.unit, root.unitScope, 40)
           journalProcess.running = true
         } else {
           root.lastFailureOutput = root._failedActionOutput

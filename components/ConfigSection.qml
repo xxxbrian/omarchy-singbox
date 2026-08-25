@@ -90,9 +90,10 @@ Column {
       label: "Unit"
       value: {
         var probe = root.service.probe
-        if (probe.pid > 0 && probe.procScope === "system") return root.service.unit + " (system)"
-        if (probe.pid > 0 && probe.procScope === "") return "none — running by hand"
-        return root.service.unit + (probe.unitLoaded ? "" : " (not found)")
+        var scope = root.service.unitScope
+        if (scope === "system") return root.service.unit + " (system)"
+        if (probe.pid > 0 && scope === "") return "none — running by hand"
+        return root.service.unit + (scope !== "" ? "" : " (not found)")
       }
     }
 

@@ -58,7 +58,11 @@ var PROBE_SCRIPT = [
   "systemctl --user show \"$unit\" -p LoadState -p ActiveState -p SubState -p UnitFileState -p MainPID 2>/dev/null | sed 's/^/unit_/' || true",
   "started=$(systemctl --user show \"$unit\" -p ActiveEnterTimestamp --value 2>/dev/null || true)",
   "if [ -n \"$started\" ]; then printf 'active_enter_epoch=%s\\n' \"$(date -d \"$started\" +%s 2>/dev/null || echo 0)\"; fi",
-  "printf 'system_active=%s\\n' \"$(systemctl is-active sing-box.service 2>/dev/null || true)\"",
+  "# The same unit name at system scope: a core packaged as a system service is",
+  "# controlled through systemctl's own polkit path, so its states matter too.",
+  "systemctl show \"$unit\" -p LoadState -p ActiveState -p SubState -p UnitFileState 2>/dev/null | sed 's/^/sys_/' || true",
+  "sys_started=$(systemctl show \"$unit\" -p ActiveEnterTimestamp --value 2>/dev/null || true)",
+  "if [ -n \"$sys_started\" ]; then printf 'sys_active_enter_epoch=%s\\n' \"$(date -d \"$sys_started\" +%s 2>/dev/null || echo 0)\"; fi",
   "for cand in \"${2:-}\" \"${3:-}\" \"$HOME/.config/sing-box/config.json\" \"/etc/sing-box/config.json\"; do",
   "  if [ -n \"$cand\" ] && [ -e \"$cand\" ]; then printf 'config_fallback=%s\\n' \"$cand\"; break; fi",
   "done",
@@ -85,7 +89,11 @@ function emptyProbe() {
     unitFileState: "",
     mainPid: 0,
     startedAt: 0,
-    systemActive: false,  // a system-scope sing-box.service is active
+    sysUnitLoaded: false, // the same unit name, at system scope
+    sysActiveState: "unknown",
+    sysSubState: "",
+    sysUnitFileState: "",
+    sysStartedAt: 0,
     configFallback: "",
     now: 0
   }
@@ -113,7 +121,11 @@ function parseProbe(text) {
     else if (key === "unit_UnitFileState") probe.unitFileState = value
     else if (key === "unit_MainPID") probe.mainPid = Number(value) || 0
     else if (key === "active_enter_epoch") probe.startedAt = Number(value) || 0
-    else if (key === "system_active") probe.systemActive = value === "active"
+    else if (key === "sys_LoadState") probe.sysUnitLoaded = value === "loaded"
+    else if (key === "sys_ActiveState") probe.sysActiveState = value || "unknown"
+    else if (key === "sys_SubState") probe.sysSubState = value
+    else if (key === "sys_UnitFileState") probe.sysUnitFileState = value
+    else if (key === "sys_active_enter_epoch") probe.sysStartedAt = Number(value) || 0
     else if (key === "config_fallback") probe.configFallback = value
     else if (key === "now") probe.now = Number(value) || 0
   }
@@ -204,12 +216,18 @@ function parseConfigStat(text) {
 
 // ---------------------------------------------------------------- commands
 //
-// Service control is user-scope only. A system unit needs privileges the
-// panel does not have and will not ask for; it reports instead of pretending.
+// Service control runs plain systemctl in the scope that owns the unit. The
+// panel itself holds no privileges: at system scope, systemctl asks polkit,
+// and the desktop's own agent puts the question to the user. Consent is the
+// user's to give per action — never a privileged helper, never silent.
 
-function startCommand(unit) { return ["systemctl", "--user", "start", String(unit || DEFAULT_UNIT)] }
-function stopCommand(unit) { return ["systemctl", "--user", "stop", String(unit || DEFAULT_UNIT)] }
-function restartCommand(unit) { return ["systemctl", "--user", "restart", String(unit || DEFAULT_UNIT)] }
+function scopeArgs(scope) {
+  return String(scope || "user") === "system" ? ["systemctl"] : ["systemctl", "--user"]
+}
+
+function startCommand(unit, scope) { return scopeArgs(scope).concat(["start", String(unit || DEFAULT_UNIT)]) }
+function stopCommand(unit, scope) { return scopeArgs(scope).concat(["stop", String(unit || DEFAULT_UNIT)]) }
+function restartCommand(unit, scope) { return scopeArgs(scope).concat(["restart", String(unit || DEFAULT_UNIT)]) }
 
 function checkCommand(binaryPath, specs) {
   var command = [String(binaryPath || "sing-box"), "check"]
@@ -223,10 +241,12 @@ function checkCommand(binaryPath, specs) {
 
 // Journal tail for a restart that did not come back: `check` passes configs
 // that still fail at start (dangling outbound references resolve at run), so
-// the journal is where the real error lands.
-function journalCommand(unit, lines) {
-  return ["journalctl", "--user", "-u", String(unit || DEFAULT_UNIT),
-    "-n", String(Number(lines) || 40), "--no-pager", "--output", "cat"]
+// the journal is where the real error lands. The system journal may refuse a
+// user outside the journal groups; an empty tail falls back to the notice.
+function journalCommand(unit, scope, lines) {
+  var base = String(scope || "user") === "system" ? ["journalctl"] : ["journalctl", "--user"]
+  return base.concat(["-u", String(unit || DEFAULT_UNIT),
+    "-n", String(Number(lines) || 40), "--no-pager", "--output", "cat"])
 }
 
 // Must leave the panel's process group: Quickshell kills the group when the
@@ -262,11 +282,15 @@ function connectionState(probe, api) {
   if (state.binaryPath === "" && !running)
     return { key: "binary_missing", label: "sing-box not installed", detail: "Install sing-box to use this panel.", active: false, tone: "idle" }
   if (!running) {
-    if (state.unitLoaded && state.activeState === "failed")
+    // The user-scope unit speaks first; the system-scope one only when there
+    // is no user unit to speak for the core.
+    var unitState = state.unitLoaded ? state.activeState
+      : (state.sysUnitLoaded ? state.sysActiveState : "")
+    if (unitState === "failed")
       return { key: "failed", label: "Failed", detail: "The service failed to start.", active: false, tone: "urgent" }
-    if (state.unitLoaded && state.activeState === "activating")
+    if (unitState === "activating")
       return { key: "starting", label: "Starting…", detail: "The service is coming up.", active: true, tone: "idle" }
-    if (state.unitLoaded)
+    if (unitState !== "")
       return { key: "stopped", label: "Stopped", detail: "sing-box is not running.", active: false, tone: "idle" }
     return { key: "no_core", label: "No core detected", detail: "Run sing-box, or point the panel at your service.", active: false, tone: "idle" }
   }
@@ -279,23 +303,49 @@ function connectionState(probe, api) {
   return { key: "running", label: "Connected", detail: "", active: true, tone: "good" }
 }
 
-// Whether start/stop/restart are the panel's to offer. A core owned by a
-// system-scope unit is reported, not fought over.
-function canControlService(probe) {
+// Which systemctl scope owns the unit the panel would control, or "" when
+// there is nothing controllable. A running core answers with the scope that
+// actually owns it; a stopped one with whichever scope has a unit on file,
+// the user's first. A core running outside systemd has no unit to restart —
+// only that case is watch-only.
+function serviceScope(probe) {
   var state = probe || emptyProbe()
-  if (state.pid > 0 && state.procScope === "system") return false
-  return state.unitLoaded && state.unitFileState !== ""
+  if (state.pid > 0) {
+    if (state.procScope === "system") return state.procUnit !== "" ? "system" : ""
+    if (state.procScope === "user" && state.procUnit !== "") return "user"
+    return state.unitLoaded ? "user" : ""
+  }
+  if (state.unitLoaded && state.unitFileState !== "") return "user"
+  if (state.sysUnitLoaded && state.sysUnitFileState !== "") return "system"
+  return ""
+}
+
+function canControlService(probe) {
+  return serviceScope(probe) !== ""
 }
 
 function serviceHint(probe) {
   var state = probe || emptyProbe()
-  if (state.pid > 0 && state.procScope === "system")
-    return "Managed by a system unit — control it with systemctl."
+  if (serviceScope(state) === "system")
+    return "System service — actions ask for authorization."
   if (state.pid > 0 && state.procUnit === "" && !state.unitLoaded)
     return "Running outside systemd — the panel can watch it, not restart it."
-  if (state.pid === 0 && !state.unitLoaded)
-    return "No user service found. Set `unit=` in the override file to name yours."
+  if (state.pid === 0 && !state.unitLoaded && !state.sysUnitLoaded)
+    return "No service found. Set `unit=` in the override file to name yours."
   return ""
+}
+
+// Seconds the serving unit has been up, or 0 when nothing systemd-owned is
+// active — one place, so the uptime row cannot disagree with the scope.
+function uptimeSeconds(probe) {
+  var state = probe || emptyProbe()
+  var scope = serviceScope(state)
+  if (state.pid === 0 || state.now <= 0) return 0
+  if (scope === "user" && state.activeState === "active" && state.startedAt > 0)
+    return state.now - state.startedAt
+  if (scope === "system" && state.sysActiveState === "active" && state.sysStartedAt > 0)
+    return state.now - state.sysStartedAt
+  return 0
 }
 
 // The mode switch talks to the running core over its API, and only a config

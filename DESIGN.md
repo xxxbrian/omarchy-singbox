@@ -30,8 +30,11 @@ already running would be failing at its one job.
 - The user manager (`user@UID.service`) is never mistaken for the core's own
   unit — a shell-started core has no unit, and claiming the session as one
   would offer a restart button for the whole desktop.
-- A system-scope core is reported, not fought over: the panel has no
-  privileges and does not ask for any. No pkexec, no sudo, ever.
+- The panel itself holds no privileges — no pkexec, no sudo, ever. A
+  system-scope unit is controlled through plain `systemctl`, whose own polkit
+  path puts the question to the user through the desktop's agent: consent is
+  given per action, on screen, never assumed. Only a core running outside
+  systemd is watch-only — there is no unit a restart would act on.
 
 ## sing-box is not mihomo
 

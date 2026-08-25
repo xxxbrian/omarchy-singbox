@@ -104,6 +104,9 @@ function resolveController(override, config, coreRunning) {
 function resolveUnit(override, probe) {
   var ov = override || emptyOverride()
   if (ov.unit !== "") return ov.unit
-  if (probe && probe.procScope === "user" && probe.procUnit !== "") return probe.procUnit
+  // Whichever scope owns the running core named its own unit; the scope to
+  // control it in is Model.serviceScope's answer, not this one's.
+  if (probe && probe.procUnit !== "" && (probe.procScope === "user" || probe.procScope === "system"))
+    return probe.procUnit
   return "sing-box.service"
 }
