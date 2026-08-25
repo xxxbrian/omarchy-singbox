@@ -1,8 +1,10 @@
 # sing-box for Omarchy
 
 An Omarchy bar panel for [sing-box](https://sing-box.sagernet.org): connection
-status, live up/down speed, Clash mode switching, and proxy selection — driven
-by your own sing-box config over the core's Clash API.
+status, live up/down speed, and per-group proxy selection — driven by your own
+sing-box config over the core's Clash API.
+
+[![sing-box panel for Omarchy](preview.png)](preview.png)
 
 The panel is a control surface, not a manager. **It never writes your config,
 never installs the binary, and never escalates privileges.** You run sing-box
@@ -67,7 +69,7 @@ config = /path/to/config.json
 | | How |
 |---|---|
 | Status, version, live traffic, connection count | Clash API (`/version`, `/traffic`, `/connections`) |
-| Pick a proxy per group, test latency | The groups are the panel's front page, Surge-style: `PUT /proxies/{group}`, `/delay`. The Clash mode is shown read-only for dashboard interop |
+| Pick a proxy per group, test latency | Surge-style controls using `PUT /proxies/{group}` and `/delay`; Clash mode is reported read-only only when the config exposes multiple modes |
 | Start / stop / restart | `systemctl` in the scope that owns the unit — a system unit raises a polkit prompt (your desktop's agent asks for authorization); a hand-started core is watch-only |
 | Validate a changed config | `sing-box check`, with the journal fetched when a start fails anyway |
 | Edit the config | Opens your editor on the file; the panel itself never writes it |
