@@ -13,6 +13,7 @@
 var PROJECT_URL = "https://github.com/xxxbrian/omarchy-singbox"
 var INSTALL_HINT = "sudo pacman -S sing-box"
 var DEFAULT_UNIT = "sing-box.service"
+var OUTPUT_LIMIT = 262144
 
 // ------------------------------------------------------------------- probe
 //
@@ -170,15 +171,24 @@ function configDisplayPath(probe) {
 // .json files in name order, which is the order sing-box itself loads them.
 var CONFIG_READ_SCRIPT = [
   "set -u",
+  "limit=8388608",
+  "total=0",
   "list=()",
   "for spec in \"$@\"; do",
   "  case \"$spec\" in",
-  "    dir:*) d=${spec#dir:}; for f in \"$d\"/*.json; do [ -f \"$f\" ] && list+=(\"$f\"); done ;;",
+  "    dir:*) d=${spec#dir:}; while IFS= read -r -d '' f; do list+=(\"$f\"); [ ${#list[@]} -ge 256 ] && break; done < <(find \"$d\" -maxdepth 1 -type f -name '*.json' -print0 | sort -z) ;;",
   "    file:*) f=${spec#file:}; [ -f \"$f\" ] && list+=(\"$f\") ;;",
   "  esac",
   "done",
   "if [ ${#list[@]} -eq 0 ]; then printf '{}'; exit 0; fi",
-  "jq -s 'reduce .[] as $item ({}; . * $item)' -- \"${list[@]}\" 2>/dev/null || printf '{}'"
+  "for f in \"${list[@]}\"; do",
+  "  size=$(stat -c %s -- \"$f\" 2>/dev/null || echo \"$limit\")",
+  "  total=$((total + size))",
+  "  if [ \"$total\" -gt \"$limit\" ]; then printf '{}'; exit 0; fi",
+  "done",
+  // QML only needs the controller fields. Never retain proxy credentials or
+  // the potentially large outbound/rule arrays in the shell process.
+  "jq -cs 'reduce .[] as $item ({}; . * $item) | {experimental: {clash_api: (.experimental.clash_api // null)}}' -- \"${list[@]}\" 2>/dev/null || printf '{}'"
 ].join("\n")
 
 function configReadCommand(specs) {
@@ -230,13 +240,15 @@ function stopCommand(unit, scope) { return scopeArgs(scope).concat(["stop", Stri
 function restartCommand(unit, scope) { return scopeArgs(scope).concat(["restart", String(unit || DEFAULT_UNIT)]) }
 
 function checkCommand(binaryPath, specs) {
-  var command = [String(binaryPath || "sing-box"), "check"]
+  var args = [String(binaryPath || "sing-box"), "check"]
   var list = specs || []
   for (var i = 0; i < list.length; i++) {
-    command.push(list[i].kind === "dir" ? "-C" : "-c")
-    command.push(String(list[i].path))
+    args.push(list[i].kind === "dir" ? "-C" : "-c")
+    args.push(String(list[i].path))
   }
-  return command
+  return ["bash", "-c",
+    "set -o pipefail; \"$@\" 2>&1 | head -c 262144; exit ${PIPESTATUS[0]}",
+    "omarchy-singbox-check"].concat(args)
 }
 
 // Journal tail for a restart that did not come back: `check` passes configs
@@ -244,9 +256,11 @@ function checkCommand(binaryPath, specs) {
 // the journal is where the real error lands. The system journal may refuse a
 // user outside the journal groups; an empty tail falls back to the notice.
 function journalCommand(unit, scope, lines) {
-  var base = String(scope || "user") === "system" ? ["journalctl"] : ["journalctl", "--user"]
-  return base.concat(["-u", String(unit || DEFAULT_UNIT),
+  var args = String(scope || "user") === "system" ? ["journalctl"] : ["journalctl", "--user"]
+  args = args.concat(["-u", String(unit || DEFAULT_UNIT),
     "-n", String(Number(lines) || 40), "--no-pager", "--output", "cat"])
+  return ["bash", "-c", "\"$@\" 2>/dev/null | head -c 262144",
+    "omarchy-singbox-journal"].concat(args)
 }
 
 // Must leave the panel's process group: Quickshell kills the group when the
@@ -415,7 +429,9 @@ function canDiagnose(kind, agent) {
   return String(agent || "") !== "" && DIAGNOSABLE.indexOf(String(kind || "")) >= 0
 }
 
-function defaultAgentCommand() { return ["omarchy-default-agent"] }
+function defaultAgentCommand() {
+  return ["bash", "-c", "omarchy-default-agent 2>/dev/null | head -c 4096"]
+}
 
 function failureLogPath(home) {
   return String(home || "") + "/.local/state/omarchy/singbox/last-failure.log"

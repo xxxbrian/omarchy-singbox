@@ -23,7 +23,7 @@ refute() {
 refute -Eq 'tee|> *"\$1"|cat *>' SingboxConfig.js
 grep -Fq 'parsed, never written' SingboxConfig.js
 # jq is invoked read-only, without any in-place tricks.
-grep -Fq "jq -s 'reduce" Model.js
+grep -Fq "jq -cs 'reduce" Model.js
 
 # ---- discovery ------------------------------------------------------------
 
@@ -108,6 +108,14 @@ grep -Fq 'setsid' Model.js
 grep -Fq 'Authorization: Bearer ' Service.qml
 grep -Fq '"@-"' SingboxApi.js
 refute -Fq 'Authorization: Bearer " + secret' SingboxApi.js
+# API bodies, config input, check output, and journal output are bounded before
+# they reach the long-running QML process.
+grep -Fq 'BOUNDED_CURL_SCRIPT' SingboxApi.js
+grep -Fq 'head -c' SingboxApi.js
+grep -Fq 'limit=8388608' Model.js
+grep -Fq 'head -c 262144' Model.js
+grep -Fq 'Model.OUTPUT_LIMIT' Service.qml
+grep -Fq 'head -c 16384' SingboxConfig.js
 # The failure log is written 0600 through a rename, and the agent prompt
 # carries paths, not the output — argv is world-readable.
 grep -Fq 'chmod 600' Model.js

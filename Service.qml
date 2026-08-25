@@ -663,10 +663,18 @@ Item {
     running: false
     command: []
     stdout: SplitParser {
-      onRead: function(line) { root._actionOutput += line + "\n" }
+      onRead: function(line) {
+        if (root._actionOutput.length >= Model.OUTPUT_LIMIT) return
+        var remaining = Model.OUTPUT_LIMIT - root._actionOutput.length
+        root._actionOutput += (line + "\n").substring(0, remaining)
+      }
     }
     stderr: SplitParser {
-      onRead: function(line) { root._actionError += line + "\n" }
+      onRead: function(line) {
+        if (root._actionError.length >= Model.OUTPUT_LIMIT) return
+        var remaining = Model.OUTPUT_LIMIT - root._actionError.length
+        root._actionError += (line + "\n").substring(0, remaining)
+      }
     }
     onExited: function(exitCode) {
       var kind = root.actionKind
@@ -709,7 +717,7 @@ Item {
       var kind = root._failedActionKind
       root._failedActionKind = ""
       root.lastFailureOutput = root._failedActionOutput
-        + "\n---- journalctl --user -u " + root.unit + " ----\n"
+        + "\n---- journalctl -u " + root.unit + " (" + root.unitScope + ") ----\n"
         + String(journalOut.text || "")
       root._failedActionOutput = ""
       root.lastError = Model.failureMessage(journalOut.text,

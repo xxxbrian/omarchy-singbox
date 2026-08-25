@@ -106,11 +106,13 @@ const Model = load("Model.js")
   eq(
     Model.checkCommand("/usr/bin/sing-box",
       [{ kind: "file", path: "/a.json" }, { kind: "dir", path: "/b" }]),
-    ["/usr/bin/sing-box", "check", "-c", "/a.json", "-C", "/b"])
+    ["bash", "-c",
+      "set -o pipefail; \"$@\" 2>&1 | head -c 262144; exit ${PIPESTATUS[0]}",
+      "omarchy-singbox-check", "/usr/bin/sing-box", "check", "-c", "/a.json", "-C", "/b"])
   const journal = Model.journalCommand("sing-box.service", "user", 40)
-  assert.ok(journal.indexOf("--user") >= 0 && journal.indexOf("sing-box.service") >= 0)
+  assert.ok(journal.indexOf("--user") >= 0 && journal.join(" ").indexOf("head -c 262144") >= 0)
   const sysJournal = Model.journalCommand("sing-box.service", "system", 40)
-  assert.ok(sysJournal.indexOf("--user") === -1)
+  assert.ok(sysJournal.indexOf("--user") === -1 && sysJournal.join(" ").indexOf("head -c 262144") >= 0)
 }
 
 // The editor must leave the panel's process group: Quickshell kills the group
@@ -204,6 +206,8 @@ function probeWith(overrides) {
 
 {
   assert.strictEqual(Model.stripAnsi("\x1b[31mFATAL\x1b[0m fail"), "FATAL fail")
+  assert.ok(Model.CONFIG_READ_SCRIPT.indexOf("limit=8388608") >= 0)
+  assert.ok(Model.CONFIG_READ_SCRIPT.indexOf("experimental: {clash_api") >= 0)
   assert.strictEqual(
     Model.redactUrls("GET https://example.com/token-abc123?k=v failed"),
     "GET example.com/… failed")

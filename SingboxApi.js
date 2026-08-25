@@ -27,6 +27,23 @@
 //     through systemd, not through here.
 
 var TIMEOUT_SECONDS = "4"
+var SMALL_RESPONSE_LIMIT = "65536"
+var CONNECTIONS_RESPONSE_LIMIT = "1048576"
+var PROXIES_RESPONSE_LIMIT = "4194304"
+var TRAFFIC_RESPONSE_LIMIT = "16777216"
+
+// `--max-filesize` only works when the server sends Content-Length. The Clash
+// API and especially `/traffic` may be chunked, so enforce the limit in a
+// bounded pipeline instead. A truncated response loses its status suffix and
+// is classified as unreachable rather than retained without bound.
+var BOUNDED_CURL_SCRIPT = [
+  "set -o pipefail",
+  "limit=$1",
+  "shift",
+  "\"$@\" | head -c \"$limit\"",
+  "status=${PIPESTATUS[0]}",
+  "if [ \"$status\" -ne 0 ] && [ \"$status\" -ne 141 ]; then exit \"$status\"; fi"
+].join("\n")
 
 function isWildcardHost(host) {
   var text = String(host || "").trim()
@@ -75,23 +92,31 @@ function authArgs(hasSecret) {
   return hasSecret === true ? ["-H", "@-"] : []
 }
 
-function getCommand(base, hasSecret, path) {
-  return ["curl", "-sS", "--max-time", TIMEOUT_SECONDS, "-w", "\\n%{http_code}"]
+function getCommand(base, hasSecret, path, limit) {
+  var args = ["curl", "-sS", "--max-time", TIMEOUT_SECONDS,
+              "-w", "\\n%{http_code}"]
     .concat(authArgs(hasSecret))
     .concat([String(base) + String(path)])
+  return boundedCurl(args, limit)
 }
 
-function versionCommand(base, hasSecret) { return getCommand(base, hasSecret, "/version") }
-function configsCommand(base, hasSecret) { return getCommand(base, hasSecret, "/configs") }
-function connectionsCommand(base, hasSecret) { return getCommand(base, hasSecret, "/connections") }
-function proxiesCommand(base, hasSecret) { return getCommand(base, hasSecret, "/proxies") }
+function boundedCurl(args, limit) {
+  return ["bash", "-c", BOUNDED_CURL_SCRIPT, "omarchy-singbox-http",
+    String(limit || SMALL_RESPONSE_LIMIT)].concat(args)
+}
+
+function versionCommand(base, hasSecret) { return getCommand(base, hasSecret, "/version", SMALL_RESPONSE_LIMIT) }
+function configsCommand(base, hasSecret) { return getCommand(base, hasSecret, "/configs", SMALL_RESPONSE_LIMIT) }
+function connectionsCommand(base, hasSecret) { return getCommand(base, hasSecret, "/connections", CONNECTIONS_RESPONSE_LIMIT) }
+function proxiesCommand(base, hasSecret) { return getCommand(base, hasSecret, "/proxies", PROXIES_RESPONSE_LIMIT) }
 
 function selectProxyCommand(base, hasSecret, group, name) {
-  return ["curl", "-sS", "--max-time", TIMEOUT_SECONDS, "-w", "\\n%{http_code}",
+  var args = ["curl", "-sS", "--max-time", TIMEOUT_SECONDS, "-w", "\\n%{http_code}",
           "-X", "PUT", "-H", "Content-Type: application/json",
           "-d", JSON.stringify({ name: String(name || "") })]
     .concat(authArgs(hasSecret))
     .concat([String(base) + "/proxies/" + encodeURIComponent(String(group || ""))])
+  return boundedCurl(args, SMALL_RESPONSE_LIMIT)
 }
 
 // A URL that answers 204 fast; the same one every Clash client defaults to.
@@ -99,11 +124,12 @@ var DELAY_TEST_URL = "https://www.gstatic.com/generate_204"
 var DELAY_TIMEOUT_MS = 5000
 
 function delayCommand(base, hasSecret, name) {
-  return ["curl", "-sS", "--max-time", "8", "-w", "\\n%{http_code}"]
+  var args = ["curl", "-sS", "--max-time", "8", "-w", "\\n%{http_code}"]
     .concat(authArgs(hasSecret))
     .concat([String(base) + "/proxies/" + encodeURIComponent(String(name || ""))
       + "/delay?timeout=" + DELAY_TIMEOUT_MS
       + "&url=" + encodeURIComponent(DELAY_TEST_URL)])
+  return boundedCurl(args, SMALL_RESPONSE_LIMIT)
 }
 
 // `/traffic` pushes one JSON object per second for as long as the socket is
@@ -111,9 +137,10 @@ function delayCommand(base, hasSecret, name) {
 // instead of a poll loop. `--no-buffer` is what makes each line arrive as it
 // is written rather than in 4KB chunks.
 function trafficCommand(base, hasSecret) {
-  return ["curl", "-sS", "-N", "--no-buffer"]
+  var args = ["curl", "-sS", "-N", "--no-buffer"]
     .concat(authArgs(hasSecret))
     .concat([String(base) + "/traffic"])
+  return boundedCurl(args, TRAFFIC_RESPONSE_LIMIT)
 }
 
 function splitResponse(text) {

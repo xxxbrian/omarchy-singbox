@@ -16,8 +16,11 @@ function overridePath(home) {
 }
 
 function readCommand(path) {
-  // `cat` of a missing file is a plain empty result, not an error state.
-  return ["bash", "-c", "cat -- \"$1\" 2>/dev/null || true", "omarchy-singbox-override", String(path)]
+  // The override is four short fields. A replaceable path must not be able to
+  // feed an arbitrary-sized file into the long-running shell process.
+  return ["bash", "-c",
+    "[ -f \"$1\" ] && head -c 16384 -- \"$1\" 2>/dev/null || true",
+    "omarchy-singbox-override", String(path)]
 }
 
 function emptyOverride() {

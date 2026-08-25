@@ -26,8 +26,9 @@ const Api = load("SingboxApi.js")
 
 {
   const get = Api.versionCommand("http://h:1", true)
-  assert.strictEqual(get[0], "curl")
+  assert.strictEqual(get[0], "bash")
   assert.ok(get.indexOf("@-") >= 0)
+  assert.ok(get.join(" ").indexOf("head -c") >= 0)
   assert.strictEqual(get.join(" ").indexOf("s3cr3t"), -1)
   assert.strictEqual(get[get.length - 1], "http://h:1/version")
 
@@ -44,6 +45,7 @@ const Api = load("SingboxApi.js")
 
   const traffic = Api.trafficCommand("http://h:1", false)
   assert.ok(traffic.indexOf("--no-buffer") >= 0)
+  assert.ok(traffic.join(" ").indexOf("head -c") >= 0)
 }
 
 // ------------------------------------------------------------------ classify
