@@ -7,11 +7,11 @@ import qs.Ui
 import "Model.js" as Model
 import "components"
 
-// The panel: a bar button hosting a three-page popup. Page one is the whole
-// state at a glance — what the core is doing, live traffic, and the mode
-// chips; page two is the proxy groups; page three is the configuration.
-// Navigation between pages is explicit — a menu item or a back arrow — and
-// every fresh open returns to page one.
+// The panel: a bar button hosting a two-page popup. Page one is the control
+// surface — what the core is doing, the outbound groups, live traffic — the
+// way Surge's own panel is a list of its groups; page two is the
+// configuration. Navigation between pages is explicit — a menu item or a
+// back arrow — and every fresh open returns to page one.
 Panel {
   id: root
   moduleName: "singbox.omarchy"
@@ -25,7 +25,6 @@ Panel {
 
   property bool cursorActive: false
   property int cursorIndex: 0
-  property int modeCursor: 0
   property int panelPage: 1
 
   readonly property bool showSetup: singbox.connection.key === "binary_missing"
@@ -35,17 +34,6 @@ Panel {
   // state. The order here is the order on screen.
   readonly property var targets: {
     if (root.panelPage === 2) {
-      var list = []
-      var groups = singbox.proxyGroups
-      for (var i = 0; i < groups.length; i++) {
-        list.push("group:" + groups[i].name)
-        if (proxiesSection.expandedGroup !== groups[i].name) continue
-        for (var j = 0; j < groups[i].members.length; j++)
-          list.push("member:" + groups[i].name + ":" + groups[i].members[j].name)
-      }
-      return list
-    }
-    if (root.panelPage === 3) {
       var actions = ["check", "edit"]
       if (singbox.canControl) actions.push("restart")
       return actions
@@ -53,7 +41,13 @@ Panel {
     if (root.showSetup) return ["setup"]
     var page = []
     if (singbox.canControl) page.push("power")
-    if (singbox.canSwitchMode) page.push("mode")
+    var groups = singbox.proxyGroups
+    for (var i = 0; i < groups.length; i++) {
+      page.push("group:" + groups[i].name)
+      if (groupsSection.expandedGroup !== groups[i].name) continue
+      for (var j = 0; j < groups[i].members.length; j++)
+        page.push("member:" + groups[i].name + ":" + groups[i].members[j].name)
+    }
     return page
   }
 
@@ -67,8 +61,19 @@ Panel {
     ? singbox.apiBase + "/ui"
     : ""
 
+  // The first selectable group's pick is what "where is my traffic going"
+  // usually means — declaration order puts the main group first.
+  readonly property string primarySelection: {
+    var groups = singbox.proxyGroups
+    for (var i = 0; i < groups.length; i++)
+      if (groups[i].selectable && groups[i].now !== "") return groups[i].now
+    for (i = 0; i < groups.length; i++)
+      if (groups[i].now !== "") return groups[i].now
+    return ""
+  }
+
   readonly property string barTooltip: singbox.connection.key === "running"
-    ? "sing-box · " + (singbox.mode !== "" ? singbox.mode : "connected")
+    ? "sing-box · " + (root.primarySelection !== "" ? "via " + root.primarySelection : "connected")
     : "sing-box · " + singbox.connection.label
 
   function clampCursor() {
@@ -80,30 +85,20 @@ Panel {
   function moveCursor(dx, dy) {
     cursorActive = true
     clampCursor()
-    if (dx !== 0 && cursorTarget === "mode") {
-      modeCursor = Math.max(0, Math.min(singbox.modeList.length - 1, modeCursor + dx))
-      return
-    }
-    if (dy !== 0) {
+    if (dy !== 0)
       cursorIndex = Math.max(0, Math.min(targets.length - 1, cursorIndex + dy))
-      if (cursorTarget === "mode") modeCursor = Math.max(0, singbox.modeList.indexOf(singbox.mode))
-    }
   }
 
   function activateCursor() {
     clampCursor()
     var target = cursorTarget
     if (target === "power") singbox.toggleService()
-    else if (target === "mode") {
-      if (modeCursor >= 0 && modeCursor < singbox.modeList.length)
-        singbox.setMode(singbox.modeList[modeCursor])
-    }
     else if (target === "setup") singbox.openDocumentation()
     else if (target === "check") singbox.runCheck()
     else if (target === "edit") singbox.openEditor()
     else if (target === "restart") singbox.restartService()
     else if (target.indexOf("group:") === 0)
-      proxiesSection.toggleGroup(target.substring(6))
+      groupsSection.toggleGroup(target.substring(6))
     else if (target.indexOf("member:") === 0) {
       var rest = target.substring(7)
       var cut = rest.indexOf(":")
@@ -111,20 +106,11 @@ Panel {
     }
   }
 
-  function cycleMode(delta) {
-    if (!singbox.canSwitchMode || singbox.modeList.length === 0) return
-    var current = singbox.modeList.indexOf(singbox.mode)
-    if (current < 0) current = 0
-    var next = (current + delta + singbox.modeList.length) % singbox.modeList.length
-    singbox.setMode(singbox.modeList[next])
-  }
-
   function openPage(page) {
     panelPage = page
     cursorActive = false
     cursorIndex = 0
     if (panelFlick) panelFlick.contentY = 0
-    if (page === 2) singbox.refreshProxies()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
@@ -138,7 +124,6 @@ Panel {
     panelPage = 1
     cursorActive = false
     cursorIndex = 0
-    modeCursor = Math.max(0, singbox.modeList.indexOf(singbox.mode))
     if (panelFlick) panelFlick.contentY = 0
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -156,14 +141,15 @@ Panel {
     function start(): string { singbox.startService(); return "ok" }
     function stop(): string { singbox.stopService(); return "ok" }
     function restart(): string { singbox.restartService(); return "ok" }
-    function mode(value: string): string {
-      var list = singbox.modeList
-      for (var i = 0; i < list.length; i++) {
-        if (String(list[i]).toLowerCase() !== String(value).toLowerCase()) continue
-        singbox.setMode(list[i])
+    function select(group: string, name: string): string {
+      var groups = singbox.proxyGroups
+      for (var i = 0; i < groups.length; i++) {
+        if (groups[i].name !== String(group)) continue
+        if (!groups[i].selectable) return groups[i].type + " groups choose on their own"
+        singbox.selectProxy(groups[i].name, String(name))
         return "ok"
       }
-      return list.length > 0 ? "expected one of " + list.join(", ") : "no modes available"
+      return "no group named " + String(group)
     }
     function status(): string {
       return JSON.stringify({
@@ -243,16 +229,11 @@ Panel {
         var key = String(text || "").toLowerCase()
         if (key === "r") singbox.refresh()
         else if (root.panelPage === 1 && key === "t") singbox.toggleService()
-        else if (root.panelPage === 1 && key === "p") root.openPage(2)
-        else if (root.panelPage === 1 && key === "c") root.openPage(3)
-        else if (root.panelPage === 1 && key === "m") root.cycleMode(1)
-        else if (root.panelPage === 1 && key >= "1" && key <= "9") {
-          var wanted = Number(key) - 1
-          if (singbox.canSwitchMode && wanted < singbox.modeList.length)
-            singbox.setMode(singbox.modeList[wanted])
-        }
-        else if (root.panelPage === 3 && key === "k") singbox.runCheck()
-        else if (root.panelPage === 3 && key === "e") singbox.openEditor()
+        else if (root.panelPage === 1 && key === "c") root.openPage(2)
+        else if (root.panelPage === 1 && key >= "1" && key <= "9")
+          groupsSection.toggleGroupAt(Number(key) - 1)
+        else if (root.panelPage === 2 && key === "k") singbox.runCheck()
+        else if (root.panelPage === 2 && key === "e") singbox.openEditor()
       }
 
       Flickable {
@@ -285,7 +266,7 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
               title: "sing-box"
               meta: singbox.connection.key === "running"
-                ? (singbox.mode !== "" ? singbox.mode + " mode" : "connected")
+                ? (root.primarySelection !== "" ? "via " + root.primarySelection : "connected")
                 : singbox.connection.label
               foreground: root.foreground
               fontFamily: root.fontFamily
@@ -334,11 +315,9 @@ Panel {
                 textColor: root.foreground
                 panelFontFamily: root.fontFamily
                 dashboardUrl: root.dashboardUrl
-                canOpenProxies: singbox.coreRunning && singbox.apiState === "ok"
                 canRestart: singbox.canControl
                 onRestartRequested: singbox.restartService()
-                onProxiesRequested: root.openPage(2)
-                onConfigRequested: root.openPage(3)
+                onConfigRequested: root.openPage(2)
               }
             }
           }
@@ -420,30 +399,25 @@ Panel {
           }
 
           PanelSeparator {
-            visible: root.panelPage === 1 && !root.showSetup && singbox.canSwitchMode
+            visible: root.panelPage === 1 && !root.showSetup && singbox.proxyGroups.length > 0
             foreground: root.foreground
           }
 
-          ModeSection {
-            visible: root.panelPage === 1 && !root.showSetup && singbox.canSwitchMode
+          GroupsSection {
+            id: groupsSection
+            visible: root.panelPage === 1 && !root.showSetup && singbox.proxyGroups.length > 0
             width: parent.width
+            service: singbox
             textColor: root.foreground
             panelFontFamily: root.fontFamily
-            mode: singbox.mode
-            modeList: singbox.modeList
-            switchable: singbox.canSwitchMode
-            pending: singbox.pendingMode !== ""
-            cursorIndex: root.cursorTarget === "mode" ? root.modeCursor : -1
-            onModeRequested: function(value) { singbox.setMode(value) }
-            onChipHovered: function(index, isHovered) {
+            cursorTarget: root.cursorTarget
+            onRowHovered: function(target, isHovered) {
               if (!isHovered) {
-                if (root.cursorTarget === "mode") root.cursorActive = false
+                root.cursorActive = false
                 return
               }
-              if (!singbox.canSwitchMode) return
               root.cursorActive = true
-              root.cursorIndex = root.targets.indexOf("mode")
-              root.modeCursor = index
+              root.cursorIndex = root.targets.indexOf(target)
             }
           }
 
@@ -460,27 +434,8 @@ Panel {
             panelFontFamily: root.fontFamily
           }
 
-          ProxiesSection {
-            id: proxiesSection
-            visible: root.panelPage === 2
-            width: parent.width
-            service: singbox
-            textColor: root.foreground
-            panelFontFamily: root.fontFamily
-            cursorTarget: root.cursorTarget
-            onBackRequested: root.openPage(1)
-            onRowHovered: function(target, isHovered) {
-              if (!isHovered) {
-                root.cursorActive = false
-                return
-              }
-              root.cursorActive = true
-              root.cursorIndex = root.targets.indexOf(target)
-            }
-          }
-
           ConfigSection {
-            visible: root.panelPage === 3
+            visible: root.panelPage === 2
             width: parent.width
             service: singbox
             textColor: root.foreground

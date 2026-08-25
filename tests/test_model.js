@@ -195,15 +195,6 @@ function probeWith(overrides) {
   assert.strictEqual(Model.uptimeSeconds(probeWith({})), 0)
 }
 
-// The mode switch needs a live API and more than one mode to offer.
-{
-  const running = probeWith({ pid: 9 })
-  assert.strictEqual(Model.canSwitchMode(running, "ok", ["Rule", "Global", "Direct"]), true)
-  assert.strictEqual(Model.canSwitchMode(running, "ok", ["Rule"]), false)
-  assert.strictEqual(Model.canSwitchMode(running, "unreachable", ["Rule", "Global"]), false)
-  assert.strictEqual(Model.canSwitchMode(Model.emptyProbe(), "ok", ["Rule", "Global"]), false)
-}
-
 // -------------------------------------------------------------------- notices
 
 {

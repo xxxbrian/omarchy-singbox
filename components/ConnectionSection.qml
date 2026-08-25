@@ -180,6 +180,19 @@ Column {
       }
     }
 
+    // Read-only, and only when the config defines clash modes at all: the
+    // groups above are the controls, but a mode flipped from an external
+    // dashboard changes where everything routes, and hiding that would let
+    // the stats lie.
+    StatRow {
+      visible: root.service.modeList.length > 1
+      width: parent.width
+      textColor: root.textColor
+      panelFontFamily: root.panelFontFamily
+      label: "Mode"
+      value: root.service.mode !== "" ? root.service.mode : "—"
+    }
+
     StatRow {
       width: parent.width
       textColor: root.textColor

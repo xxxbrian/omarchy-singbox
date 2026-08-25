@@ -58,7 +58,6 @@ Item {
   // stops overriding once a refresh confirms the real state. Waiting for
   // systemd makes the panel feel broken.
   property int desiredActive: -1
-  property string pendingMode: ""
   property string pendingSelectGroup: ""
   property string pendingSelectName: ""
   property string delayTesting: ""
@@ -112,13 +111,14 @@ Item {
   readonly property bool canControl: Model.canControlService(probe)
   readonly property string serviceHint: Model.serviceHint(probe)
 
+  // Read-only: sing-box's clash mode is a compatibility surface for Clash
+  // dashboards, not something this panel drives. The groups are the controls;
+  // the mode is reported so a switch made elsewhere cannot mislead the stats.
   readonly property var modeList: liveConfigs ? liveConfigs.modeList : []
-  readonly property bool canSwitchMode: Model.canSwitchMode(probe, apiState, modeList)
-  readonly property string mode: pendingMode !== "" ? pendingMode
-    : (liveConfigs && liveConfigs.mode !== "" ? liveConfigs.mode : config.defaultMode)
+  readonly property string mode: liveConfigs && liveConfigs.mode !== "" ? liveConfigs.mode : config.defaultMode
 
   readonly property bool busy: probeProcess.running || overrideReadProcess.running
-    || configReadProcess.running || actionProcess.running || modeProcess.running
+    || configReadProcess.running || actionProcess.running
     || proxySelectProcess.running || checkProcess.running
   readonly property bool actionRunning: actionProcess.running
   readonly property bool checking: checkProcess.running
@@ -195,17 +195,6 @@ Item {
   }
 
   // ---------------------------------------------------------------- actions
-
-  function setMode(next) {
-    var wanted = String(next || "")
-    if (wanted === "" || !canSwitchMode || modeProcess.running) return
-    if (wanted === mode) return
-    pendingMode = wanted
-    lastError = ""
-    optimismTimer.restart()
-    modeProcess.command = SingboxApi.setModeCommand(apiBase, apiSecret, wanted)
-    modeProcess.running = true
-  }
 
   function selectProxy(group, name) {
     var groupName = String(group || "")
@@ -392,7 +381,6 @@ Item {
     repeat: false
     onTriggered: {
       root.desiredActive = -1
-      root.pendingMode = ""
       root.pendingSelectGroup = ""
       root.pendingSelectName = ""
     }
@@ -509,8 +497,6 @@ Item {
       var parsed = SingboxApi.parseConfigs(result.body)
       if (!parsed) return
       root.liveConfigs = parsed
-      // The core has spoken; stop overriding with the click.
-      if (root.pendingMode !== "" && parsed.mode === root.pendingMode) root.pendingMode = ""
     }
   }
 
@@ -555,25 +541,6 @@ Item {
           break
         }
       }
-    }
-  }
-
-  Process {
-    id: modeProcess
-    running: false
-    command: []
-    stdout: StdioCollector { id: modeOut; waitForEnd: true }
-    stderr: StdioCollector { id: modeErr; waitForEnd: true }
-    onExited: function(exitCode) {
-      var result = SingboxApi.classify(exitCode, modeOut.text, modeErr.text)
-      if (result.ok) {
-        // No status line: the selected chip already shows the result, and a
-        // notice that flashes in and out reflows the whole panel for nothing.
-        root.refreshApi()
-        return
-      }
-      root.pendingMode = ""
-      root.reportError(result.message)
     }
   }
 

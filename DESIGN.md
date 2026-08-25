@@ -40,11 +40,14 @@ already running would be failing at its one job.
 
 The panel descends from omarchy-mihoro but three API differences shape it:
 
-- **Modes are the config's, not the core's.** sing-box has no built-in
-  Rule/Global/Direct; `mode-list` reports whatever `clash_mode` values the
-  route rules use. The chips render that list, and with one entry the section
-  hides — there is nothing to switch, and a control that lit up would be
-  describing a mode not in effect anywhere.
+- **The groups are the controls; there is no mode switcher.** A Clash
+  client's global Rule/Global/Direct is, in sing-box, just a rule-match
+  condition kept for dashboard compatibility. The panel follows sing-box's
+  own model: every routing decision the config leaves open is a selection in
+  an outbound group, so the groups sit on page one — the way Surge's panel is
+  a list of its groups. The clash mode is shown read-only (and only when the
+  config defines more than one): a mode flipped from an external dashboard
+  reroutes everything, and hiding that would let the stats lie.
 - **No hot reload, no runtime TUN toggle.** A config change takes a restart.
   The config page owns that flow: `sing-box check` as the gate, restart as
   the apply, and the journal fetched when the start fails anyway — `check`

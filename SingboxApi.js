@@ -19,8 +19,8 @@
 //   - `/configs` carries `mode-list`, the clash_mode values the config's route
 //     rules actually use. A config with no clash_mode rules lists exactly one
 //     mode, and there is nothing to switch.
-//   - Mode names are whatever the config says, typically capitalized. PATCH
-//     matches them case-insensitively; the panel keeps the list's casing.
+//   - Mode names are whatever the config says. The panel reads them and does
+//     not switch them: the groups are the controls, sing-box style.
 //   - GLOBAL appears in `/proxies` but PUT to it is a 404: sing-box has no
 //     selectable global group. Only `Selector` groups accept a selection.
 //   - There is no config reload and no runtime TUN toggle. Config changes go
@@ -84,14 +84,6 @@ function versionCommand(base, secret) { return getCommand(base, secret, "/versio
 function configsCommand(base, secret) { return getCommand(base, secret, "/configs") }
 function connectionsCommand(base, secret) { return getCommand(base, secret, "/connections") }
 function proxiesCommand(base, secret) { return getCommand(base, secret, "/proxies") }
-
-function setModeCommand(base, secret, mode) {
-  return ["curl", "-sS", "--max-time", TIMEOUT_SECONDS, "-w", "\\n%{http_code}",
-          "-X", "PATCH", "-H", "Content-Type: application/json",
-          "-d", JSON.stringify({ mode: String(mode || "") })]
-    .concat(authArgs(secret))
-    .concat([String(base) + "/configs"])
-}
 
 function selectProxyCommand(base, secret, group, name) {
   return ["curl", "-sS", "--max-time", TIMEOUT_SECONDS, "-w", "\\n%{http_code}",

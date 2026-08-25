@@ -67,25 +67,10 @@ config = /path/to/config.json
 | | How |
 |---|---|
 | Status, version, live traffic, connection count | Clash API (`/version`, `/traffic`, `/connections`) |
-| Switch Clash modes | `PATCH /configs` — the modes are whatever your route rules' `clash_mode` values define; with none defined the control hides itself |
-| Pick a proxy in a `Selector` group, test latency | `PUT /proxies/{group}`, `/delay` |
+| Pick a proxy per group, test latency | The groups are the panel's front page, Surge-style: `PUT /proxies/{group}`, `/delay`. The Clash mode is shown read-only for dashboard interop |
 | Start / stop / restart | `systemctl` in the scope that owns the unit — a system unit raises a polkit prompt (your desktop's agent asks for authorization); a hand-started core is watch-only |
 | Validate a changed config | `sing-box check`, with the journal fetched when a start fails anyway |
 | Edit the config | Opens your editor on the file; the panel itself never writes it |
-
-Modes worth knowing about: sing-box has no built-in Rule/Global/Direct. To get
-the classic three, your route rules need `clash_mode` entries, e.g.:
-
-```json
-{
-  "route": {
-    "rules": [
-      { "clash_mode": "Global", "outbound": "GLOBAL" },
-      { "clash_mode": "Direct", "outbound": "direct" }
-    ]
-  }
-}
-```
 
 ## Keyboard
 
@@ -95,19 +80,17 @@ With the panel open (`Esc` closes or goes back, `Tab` moves to the next panel):
 |-----|--------|
 | `r` | Refresh |
 | `t` | Toggle the service |
-| `m` | Cycle modes; `1`–`9` jump to one |
-| `p` | Proxies page |
+| `1`–`9` | Expand the Nth group |
 | `c` | Configuration page |
 | arrows / `hjkl` | Move the cursor; Enter activates |
 
-On the proxies page, left-click a node to select it, right-click to test its
-latency.
+In a group, left-click a node to select it, right-click to test its latency.
 
 ## From a script
 
 ```sh
-omarchy-shell singbox.omarchy status     # one JSON line
-omarchy-shell singbox.omarchy mode Rule  # case-insensitive, must be in mode-list
+omarchy-shell singbox.omarchy status                # one JSON line
+omarchy-shell singbox.omarchy select Proxy "JP DMIT" # pick a node in a group
 omarchy-shell singbox.omarchy restart
 ```
 

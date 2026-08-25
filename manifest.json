@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "author": "Bojin Li <hi@bojin.li>",
   "license": "MIT",
-  "description": "A sing-box control panel for the Omarchy bar: watch the running core, switch Clash modes, pick proxies, and monitor live traffic — driven by your own sing-box config.",
+  "description": "A sing-box control panel for the Omarchy bar: watch the running core, pick proxies per group Surge-style, and monitor live traffic — driven by your own sing-box config.",
   "kinds": [
     "bar-widget"
   ],
@@ -15,7 +15,7 @@
   },
   "barWidget": {
     "displayName": "sing-box",
-    "description": "A sing-box control panel in the bar: connection status, live up/down speed, Clash mode switching, and proxy selection over the running core's Clash API.",
+    "description": "A sing-box control panel in the bar: connection status, live up/down speed, and per-group proxy selection over the running core's Clash API.",
     "category": "Network",
     "aliases": [
       "sing-box",

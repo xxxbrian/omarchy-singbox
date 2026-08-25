@@ -14,11 +14,9 @@ Item {
   required property color textColor
   required property string panelFontFamily
   property string dashboardUrl: ""
-  property bool canOpenProxies: false
   property bool canRestart: false
 
   signal restartRequested()
-  signal proxiesRequested()
   signal configRequested()
 
   implicitWidth: Style.space(24)
@@ -58,14 +56,6 @@ Item {
       id: menuItems
       spacing: Style.space(2)
 
-      MenuRow {
-        text: "Proxies..."
-        enabled: root.canOpenProxies
-        onActivated: {
-          menu.close()
-          root.proxiesRequested()
-        }
-      }
       MenuRow {
         text: "Configuration..."
         onActivated: {

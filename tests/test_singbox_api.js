@@ -34,10 +34,6 @@ const Api = load("SingboxApi.js")
   const bare = Api.versionCommand("http://h:1", "")
   assert.strictEqual(bare.indexOf("-H"), -1)
 
-  const mode = Api.setModeCommand("http://h:1", "", "Global")
-  assert.ok(mode.indexOf("PATCH") >= 0)
-  assert.ok(mode.indexOf('{"mode":"Global"}') >= 0)
-
   const select = Api.selectProxyCommand("http://h:1", "", "My Group", "node a")
   assert.strictEqual(select[select.length - 1], "http://h:1/proxies/My%20Group")
   assert.ok(select.indexOf('{"name":"node a"}') >= 0)

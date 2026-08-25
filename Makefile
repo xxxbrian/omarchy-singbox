@@ -4,9 +4,8 @@ QML_FILES := Panel.qml Service.qml \
 	components/SingboxIcon.qml \
 	components/StatRow.qml \
 	components/Sparkline.qml \
-	components/ModeSection.qml \
 	components/ConnectionSection.qml \
-	components/ProxiesSection.qml \
+	components/GroupsSection.qml \
 	components/ConfigSection.qml \
 	components/SetupCard.qml \
 	components/PanelMenu.qml

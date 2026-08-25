@@ -35,17 +35,18 @@ grep -Fq "grep -v '^user@'" Model.js
 # The override wins so a user can always rescue a misread setup.
 grep -Fq 'if (ov.endpoint !== "")' SingboxConfig.js
 
-# ---- mode switching -------------------------------------------------------
+# ---- groups are the controls ----------------------------------------------
 
-# Modes are discovered from the running core, never hardcoded: sing-box has no
-# built-in Rule/Global/Direct, only what the config's clash_mode rules define.
-grep -Fq 'mode-list' SingboxApi.js
-grep -Fq 'modeList: singbox.modeList' Panel.qml
+# sing-box style: every routing decision the config leaves open is a group
+# selection, so the groups sit on page one and there is no mode switcher. The
+# clash mode is read, never written — it exists for Clash dashboards, and a
+# switch made there must not let the stats lie.
+grep -Fq 'GroupsSection {' Panel.qml
+refute -Fq 'setModeCommand' SingboxApi.js Service.qml
 refute -Eq 'MODES *= *\[' Model.js
-# With one mode there is nothing to switch.
-grep -Fq 'return (modeList || []).length > 1' Model.js
-# `switchable`, not `enabled`: the latter is Item's own property.
-grep -Fq 'switchable: singbox.canSwitchMode' Panel.qml
+grep -Fq 'mode-list' SingboxApi.js
+grep -Fq 'label: "Mode"' components/ConnectionSection.qml
+grep -Fq 'visible: root.service.modeList.length > 1' components/ConnectionSection.qml
 
 # ---- proxy selection ------------------------------------------------------
 
@@ -53,10 +54,10 @@ grep -Fq 'switchable: singbox.canSwitchMode' Panel.qml
 # excluded outright — PUT to it is a 404.
 grep -Fq '"Selector"' SingboxApi.js
 grep -Fq 'if (key === "GLOBAL"' SingboxApi.js
-grep -Fq 'if (memberRow.selectable)' components/ProxiesSection.qml
+grep -Fq 'if (memberRow.selectable)' components/GroupsSection.qml
 # Colour alone never carries state: the selected member is a filled dot and a
 # selected fill.
-grep -Fq '"●"' components/ProxiesSection.qml
+grep -Fq '"●"' components/GroupsSection.qml
 
 # ---- connection status ----------------------------------------------------
 

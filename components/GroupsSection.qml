@@ -3,13 +3,17 @@ import qs.Commons
 import qs.Ui
 import "../Model.js" as Model
 
-// The proxy groups the running config defines, one expandable section per
-// group. Only `Selector` groups take a click — sing-box refuses selection on
-// everything else — so URLTest and Fallback groups render their members
-// without a pointer and let the core keep choosing.
+// The panel's primary control surface, the way Surge's own panel is a list of
+// its groups: one expandable section per outbound group, on page one. What a
+// Clash client does with a global mode switch, sing-box does here — every
+// routing decision the config leaves open is a selection in one of these
+// groups, so the groups are the controls and there is nothing global to flip.
 //
-// Left-click a member to select it; right-click to test its latency. The
-// delay badge is the newest entry in the history sing-box already keeps.
+// Only `Selector` groups take a click — sing-box refuses selection on
+// everything else — so URLTest and Fallback groups render their members
+// without a pointer and let the core keep choosing. Left-click a member to
+// select it; right-click to test its latency. The delay badge is the newest
+// entry in the history sing-box already keeps.
 Column {
   id: root
 
@@ -19,7 +23,6 @@ Column {
   property string cursorTarget: ""
   property string expandedGroup: ""
 
-  signal backRequested()
   signal rowHovered(string target, bool isHovered)
 
   readonly property var groups: service.proxyGroups
@@ -36,27 +39,20 @@ Column {
     expandedGroup = expandedGroup === name ? "" : name
   }
 
+  function toggleGroupAt(index) {
+    if (index < 0 || index >= groups.length) return
+    toggleGroup(groups[index].name)
+  }
+
   Item {
     width: parent.width
-    implicitHeight: Math.max(backButton.implicitHeight, proxiesHeader.implicitHeight)
-
-    Button {
-      id: backButton
-      anchors.left: parent.left
-      anchors.verticalCenter: parent.verticalCenter
-      text: "←"
-      foreground: root.textColor
-      bordered: false
-      fontSize: Style.font.body
-      onClicked: root.backRequested()
-    }
+    implicitHeight: groupsHeader.implicitHeight
 
     PanelSectionHeader {
-      id: proxiesHeader
-      anchors.left: backButton.right
-      anchors.leftMargin: Style.space(6)
+      id: groupsHeader
+      anchors.left: parent.left
       anchors.verticalCenter: parent.verticalCenter
-      text: "PROXIES"
+      text: "GROUPS"
       foreground: root.textColor
       fontFamily: root.panelFontFamily
     }
@@ -70,18 +66,6 @@ Column {
       font.family: root.panelFontFamily
       font.pixelSize: Style.font.caption
     }
-  }
-
-  Text {
-    width: parent.width
-    visible: root.groups.length === 0
-    text: root.service.apiState === "ok"
-      ? "The running config defines no proxy groups."
-      : "Waiting for the core's API."
-    color: Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.55)
-    font.family: root.panelFontFamily
-    font.pixelSize: Style.font.bodySmall
-    wrapMode: Text.WordWrap
   }
 
   Repeater {
@@ -141,7 +125,7 @@ Column {
           width: Math.min(implicitWidth, groupRow.width * 0.55)
           horizontalAlignment: Text.AlignRight
           text: groupBlock.current !== ""
-            ? groupBlock.current + "  · " + groupBlock.modelData.type.toLowerCase()
+            ? groupBlock.current + (groupBlock.modelData.selectable ? "" : " · auto")
             : groupBlock.modelData.type.toLowerCase()
           color: groupBlock.current !== ""
             ? Style.selectedStateColor(root.textColor, Color.accent)
@@ -249,14 +233,5 @@ Column {
         }
       }
     }
-  }
-
-  Text {
-    width: parent.width
-    visible: root.groups.length > 0
-    text: "Left-click selects · right-click tests latency"
-    color: Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.4)
-    font.family: root.panelFontFamily
-    font.pixelSize: Style.font.caption
   }
 }

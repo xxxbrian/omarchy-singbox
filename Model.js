@@ -348,14 +348,6 @@ function uptimeSeconds(probe) {
   return 0
 }
 
-// The mode switch talks to the running core over its API, and only a config
-// that defines clash_mode rules has more than one mode to offer.
-function canSwitchMode(probe, api, modeList) {
-  var state = connectionState(probe, api)
-  if (state.key !== "running") return false
-  return (modeList || []).length > 1
-}
-
 // ------------------------------------------------------------------ notices
 //
 // A message from outside is shortened before it is shown, never by the clamp:
