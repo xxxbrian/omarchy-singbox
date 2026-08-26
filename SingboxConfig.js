@@ -15,12 +15,9 @@ function overridePath(home) {
   return String(home || "") + "/.config/omarchy-singbox/config"
 }
 
-function readCommand(path) {
-  // The override is four short fields. A replaceable path must not be able to
-  // feed an arbitrary-sized file into the long-running shell process.
-  return ["bash", "-c",
-    "[ -f \"$1\" ] && head -c 16384 -- \"$1\" 2>/dev/null || true",
-    "omarchy-singbox-override", String(path)]
+function readCommand(readerPath, path) {
+  // The same descriptor-level reader protects the panel's optional override.
+  return ["python3", String(readerPath), "read", String(path)]
 }
 
 function emptyOverride() {

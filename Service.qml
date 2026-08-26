@@ -97,6 +97,8 @@ Item {
 
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string overridePath: SingboxConfig.overridePath(home)
+  readonly property string configReaderPath: decodeURIComponent(
+    String(Qt.resolvedUrl("config_reader.py")).replace(/^file:\/\//, ""))
 
   readonly property string unit: SingboxConfig.resolveUnit(override, probe)
   readonly property var configSpecs: Model.configSpecs(probe)
@@ -133,7 +135,7 @@ Item {
 
   function refresh() {
     if (overrideReadProcess.running) return
-    overrideReadProcess.command = SingboxConfig.readCommand(overridePath)
+    overrideReadProcess.command = SingboxConfig.readCommand(configReaderPath, overridePath)
     overrideReadProcess.running = true
     if (!pollWatchdog.running) pollWatchdog.start()
   }
@@ -147,10 +149,10 @@ Item {
 
   function refreshConfig() {
     if (configReadProcess.running) return
-    configReadProcess.command = Model.configReadCommand(configSpecs)
+    configReadProcess.command = Model.configReadCommand(configReaderPath, configSpecs)
     configReadProcess.running = true
     if (!configStatProcess.running) {
-      configStatProcess.command = Model.configStatCommand(configSpecs)
+      configStatProcess.command = Model.configStatCommand(configReaderPath, configSpecs)
       configStatProcess.running = true
     }
   }

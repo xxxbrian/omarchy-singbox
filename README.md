@@ -14,6 +14,7 @@ its API makes drivable.
 ## Requirements
 
 - Omarchy
+- Python 3 (included with Omarchy)
 - [sing-box](https://sing-box.sagernet.org) (`sudo pacman -S sing-box`)
 - A config with the Clash API enabled:
 

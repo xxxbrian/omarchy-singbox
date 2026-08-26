@@ -24,6 +24,7 @@ test-js:
 test-shell:
 	bash tests/test_install.sh
 	bash tests/test_panel_source.sh
+	python3 tests/test_config_reader.py
 
 # The shell's modules are `qs.Ui` and `qs.Commons`, but they live in Ui/ and
 # Commons/ under the shell root, so qmllint needs an import path where a `qs`

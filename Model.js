@@ -165,34 +165,10 @@ function configDisplayPath(probe) {
 
 // -------------------------------------------------------------- config read
 //
-// Emits one merged JSON object for the spec list, later files overriding
-// earlier ones — the panel only needs `experimental.clash_api`, which is an
-// object, so jq's `*` deep merge is faithful enough. A dir spec expands to its
-// .json files in name order, which is the order sing-box itself loads them.
-var CONFIG_READ_SCRIPT = [
-  "set -u",
-  "limit=8388608",
-  "total=0",
-  "list=()",
-  "for spec in \"$@\"; do",
-  "  case \"$spec\" in",
-  "    dir:*) d=${spec#dir:}; while IFS= read -r -d '' f; do list+=(\"$f\"); [ ${#list[@]} -ge 256 ] && break; done < <(find \"$d\" -maxdepth 1 -type f -name '*.json' -print0 | sort -z) ;;",
-  "    file:*) f=${spec#file:}; [ -f \"$f\" ] && list+=(\"$f\") ;;",
-  "  esac",
-  "done",
-  "if [ ${#list[@]} -eq 0 ]; then printf '{}'; exit 0; fi",
-  "for f in \"${list[@]}\"; do",
-  "  size=$(stat -c %s -- \"$f\" 2>/dev/null || echo \"$limit\")",
-  "  total=$((total + size))",
-  "  if [ \"$total\" -gt \"$limit\" ]; then printf '{}'; exit 0; fi",
-  "done",
-  // QML only needs the controller fields. Never retain proxy credentials or
-  // the potentially large outbound/rule arrays in the shell process.
-  "jq -cs 'reduce .[] as $item ({}; . * $item) | {experimental: {clash_api: (.experimental.clash_api // null)}}' -- \"${list[@]}\" 2>/dev/null || printf '{}'"
-].join("\n")
-
-function configReadCommand(specs) {
-  var command = ["bash", "-c", CONFIG_READ_SCRIPT, "omarchy-singbox-config"]
+// The helper opens each path with no-follow and nonblocking flags, then checks
+// and reads through that same descriptor. QML only receives clash_api fields.
+function configReadCommand(readerPath, specs) {
+  var command = ["python3", String(readerPath), "config"]
   var list = specs || []
   for (var i = 0; i < list.length; i++)
     command.push(String(list[i].kind) + ":" + String(list[i].path))
@@ -201,12 +177,10 @@ function configReadCommand(specs) {
 
 // One stat per refresh for the config page. Only the first spec is statted:
 // it is the primary file, and the page names the rest without dating them.
-function configStatCommand(specs) {
+function configStatCommand(readerPath, specs) {
   var list = specs || []
   var path = list.length > 0 ? String(list[0].path) : ""
-  return ["bash", "-c",
-    "if [ -e \"$1\" ]; then printf 'size=%s\\nmtime=%s\\nreadable=%s\\n' \"$(stat -c %s -- \"$1\" 2>/dev/null || echo 0)\" \"$(stat -c %Y -- \"$1\" 2>/dev/null || echo 0)\" \"$([ -r \"$1\" ] && echo 1 || echo 0)\"; fi",
-    "omarchy-singbox-stat", path]
+  return ["python3", String(readerPath), "stat", path]
 }
 
 function parseConfigStat(text) {

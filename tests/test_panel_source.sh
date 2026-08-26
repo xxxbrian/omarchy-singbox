@@ -20,10 +20,15 @@ refute() {
 # The whole premise: the config is the user's. The panel reads it, checks it,
 # opens an editor on it, and restarts the service — nothing else. No process
 # in the service writes to a config path.
-refute -Eq 'tee|> *"\$1"|cat *>' SingboxConfig.js
+refute -Eq 'tee|> *"\$1"|cat *>' SingboxConfig.js config_reader.py
 grep -Fq 'parsed, never written' SingboxConfig.js
-# jq is invoked read-only, without any in-place tricks.
-grep -Fq "jq -cs 'reduce" Model.js
+# Every config path is read by the repository-local descriptor-level helper.
+grep -Fq 'config_reader.py' Service.qml
+grep -Fq 'os.O_NOFOLLOW' config_reader.py
+grep -Fq 'os.O_NONBLOCK' config_reader.py
+grep -Fq 'os.fstat(fd)' config_reader.py
+refute -Eq 'O_WRONLY|O_RDWR|os\.rename|os\.replace' config_reader.py
+refute -Eq 'jq .*\$|jq .*list|stat -c.*config' Model.js SingboxConfig.js
 
 # ---- discovery ------------------------------------------------------------
 
@@ -112,10 +117,11 @@ refute -Fq 'Authorization: Bearer " + secret' SingboxApi.js
 # they reach the long-running QML process.
 grep -Fq 'BOUNDED_CURL_SCRIPT' SingboxApi.js
 grep -Fq 'head -c' SingboxApi.js
-grep -Fq 'limit=8388608' Model.js
+grep -Fq 'CONFIG_LIMIT = 8 * 1024 * 1024' config_reader.py
+grep -Fq 'MAX_CONFIG_FILES = 256' config_reader.py
 grep -Fq 'head -c 262144' Model.js
 grep -Fq 'Model.OUTPUT_LIMIT' Service.qml
-grep -Fq 'head -c 16384' SingboxConfig.js
+grep -Fq 'OVERRIDE_LIMIT = 16 * 1024' config_reader.py
 # The failure log is written 0600 through a rename, and the agent prompt
 # carries paths, not the output — argv is world-readable.
 grep -Fq 'chmod 600' Model.js

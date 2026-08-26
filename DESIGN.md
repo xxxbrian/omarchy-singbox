@@ -121,6 +121,9 @@ one with the cursor cleared.
 
 - The API secret rides an `Authorization` header, never a URL — URLs land in
   logs and process lists.
+- Replaceable config paths are opened no-follow and nonblocking, then checked
+  and read through the same descriptor. Only `experimental.clash_api` crosses
+  into the long-running QML process.
 - The failure log is written `0600` through a temporary file renamed into
   place. The agent prompt carries paths, never the output: `--prompt` becomes
   argv, and the process list is world-readable.

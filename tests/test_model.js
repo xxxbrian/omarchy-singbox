@@ -113,6 +113,11 @@ const Model = load("Model.js")
   assert.ok(journal.indexOf("--user") >= 0 && journal.join(" ").indexOf("head -c 262144") >= 0)
   const sysJournal = Model.journalCommand("sing-box.service", "system", 40)
   assert.ok(sysJournal.indexOf("--user") === -1 && sysJournal.join(" ").indexOf("head -c 262144") >= 0)
+  eq(Model.configReadCommand("/plugin/config_reader.py", [
+    { kind: "file", path: "/a.json" }, { kind: "dir", path: "/b" }
+  ]), ["python3", "/plugin/config_reader.py", "config", "file:/a.json", "dir:/b"])
+  eq(Model.configStatCommand("/plugin/config_reader.py", [{ kind: "file", path: "/a.json" }]),
+    ["python3", "/plugin/config_reader.py", "stat", "/a.json"])
 }
 
 // The editor must leave the panel's process group: Quickshell kills the group
@@ -206,8 +211,6 @@ function probeWith(overrides) {
 
 {
   assert.strictEqual(Model.stripAnsi("\x1b[31mFATAL\x1b[0m fail"), "FATAL fail")
-  assert.ok(Model.CONFIG_READ_SCRIPT.indexOf("limit=8388608") >= 0)
-  assert.ok(Model.CONFIG_READ_SCRIPT.indexOf("experimental: {clash_api") >= 0)
   assert.strictEqual(
     Model.redactUrls("GET https://example.com/token-abc123?k=v failed"),
     "GET example.com/… failed")

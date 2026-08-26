@@ -8,6 +8,10 @@ const { load } = require("./load")
 
 const Config = load("SingboxConfig.js")
 
+eq(Config.readCommand("/plugin/config_reader.py", "/home/u/.config/omarchy-singbox/config"),
+  ["python3", "/plugin/config_reader.py", "read",
+    "/home/u/.config/omarchy-singbox/config"])
+
 // ------------------------------------------------------------- override file
 
 {
